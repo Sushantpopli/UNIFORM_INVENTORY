@@ -4,11 +4,11 @@ from schools.models import SchoolProduct
 
 class StockTransaction(models.Model):
     TRANSACTION_TYPES = [
-        ('RESTOCK', 'Restock (Stock IN)'),
-        ('SALE', 'Sale (Stock OUT)'),
+        ('RESTOCK', 'Stock Added'),
+        ('SALE', 'Sale'),
         ('RETURN', 'Return'),
-        ('EXCHANGE_IN', 'Exchange — Item Returned'),
-        ('EXCHANGE_OUT', 'Exchange — New Item Given'),
+        ('EXCHANGE_IN', 'Exchange — Returned'),
+        ('EXCHANGE_OUT', 'Exchange — Given'),
     ]
 
     school_product = models.ForeignKey(
@@ -17,13 +17,16 @@ class StockTransaction(models.Model):
     transaction_type = models.CharField(max_length=20, choices=TRANSACTION_TYPES)
     quantity = models.IntegerField()
     note = models.TextField(blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    is_void = models.BooleanField(default=False, db_index=True)
+    void_reason = models.TextField(blank=True)
 
     class Meta:
         ordering = ['-created_at']
 
     def __str__(self):
-        return f"{self.get_transaction_type_display()} | {self.school_product} | Qty: {self.quantity}"
+        prefix = '[VOID] ' if self.is_void else ''
+        return f"{prefix}{self.get_transaction_type_display()} | {self.school_product} | Qty: {self.quantity}"
 
 
 class ManufacturingOrder(models.Model):

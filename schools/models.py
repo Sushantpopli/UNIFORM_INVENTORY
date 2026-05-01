@@ -19,12 +19,17 @@ class SchoolProduct(models.Model):
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='school_products')
     size = models.ForeignKey(Size, on_delete=models.CASCADE, related_name='school_products')
     price = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
-    stock = models.IntegerField(default=0)
+    stock = models.IntegerField(default=0, db_index=True)
     low_stock_threshold = models.IntegerField(default=5)
 
     class Meta:
         unique_together = ('school', 'product', 'size')
         ordering = ['school__name', 'product__name', 'size__size_value']
+        indexes = [
+            models.Index(fields=['school', 'product', 'size'], name='idx_school_product_size'),
+            models.Index(fields=['school', 'product'], name='idx_school_product'),
+            models.Index(fields=['stock'], name='idx_stock_level'),
+        ]
 
     def __str__(self):
         return f"{self.school.name} — {self.product.name} ({self.size.size_value})"
@@ -39,4 +44,4 @@ class SchoolProduct(models.Model):
             return 'out'
         if self.stock <= self.low_stock_threshold:
             return 'low'
-        return 'ok'
+        return 'ok'

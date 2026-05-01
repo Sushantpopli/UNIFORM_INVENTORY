@@ -1,76 +1,52 @@
 {% extends 'base.html' %}
-{% block title %}
-  {% if action == 'stock_in' %}Stock IN{% elif action == 'sale' %}Record Sale{% else %}Return{% endif %}
-{% endblock %}
+{% block title %}{{ page_title }} — UniStock{% endblock %}
 {% block nav_stockin %}{% if action == 'stock_in' %}active{% endif %}{% endblock %}
 {% block nav_sale %}{% if action == 'sale' %}active{% endif %}{% endblock %}
 {% block nav_return %}{% if action == 'return' %}active{% endif %}{% endblock %}
 {% block page_title %}{{ page_title }}{% endblock %}
+{% block page_sub %}{{ page_desc }}{% endblock %}
 
 {% block content %}
 <div class="form-card card">
-  <p class="text-muted mb-4">
-    {% if action == 'stock_in' %}
-      Select the school, product and size, then enter the quantity arriving in stock.
-    {% elif action == 'sale' %}
-      Select what was sold. Stock will be reduced automatically.
-    {% else %}
-      Select the item being returned. Stock will be added back.
-    {% endif %}
-  </p>
-
-  <form method="POST">
+  <form method="POST" onsubmit="return confirmAction(this, buildConfirmMsg())">
     {% csrf_token %}
     <div class="form-grid">
-
       <div class="form-group">
         <label for="school">School</label>
         <select name="school" id="school" required>
-          <option value="">— Select School —</option>
-          {% for s in schools %}
-          <option value="{{ s.id }}">{{ s.name }}</option>
-          {% endfor %}
+          <option value="">-- Select School --</option>
+          {% for s in schools %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
         </select>
       </div>
-
       <div class="form-group">
         <label for="product">Product</label>
         <select name="product" id="product" disabled required>
-          <option value="">— Select Product —</option>
+          <option value="">-- Select Product --</option>
         </select>
       </div>
-
       <div class="form-group">
         <label for="size">Size</label>
         <select name="size" id="size" disabled required>
-          <option value="">— Select Size —</option>
+          <option value="">-- Select Size --</option>
         </select>
       </div>
-
       <div class="form-group">
         <label>Current Stock</label>
         <div class="stock-display" id="stock-display">
-          <span style="color:var(--text-muted)">— select above first —</span>
+          <span style="color:var(--text-muted)">Select school, product & size above</span>
         </div>
       </div>
-
       <div class="form-group">
-        <label for="quantity">Quantity</label>
+        <label for="quantity">Quantity (pieces)</label>
         <input type="number" name="quantity" id="quantity" min="1" value="1" required/>
       </div>
-
       <div class="form-group">
         <label for="note">Note <span style="color:var(--text-muted);font-weight:400">(optional)</span></label>
-        <input type="text" name="note" id="note" placeholder="e.g. Morning batch, 3 pcs"/>
+        <input type="text" name="note" id="note" placeholder="e.g. morning batch"/>
       </div>
-
     </div>
-
     <div class="flex gap-2" style="margin-top:24px;">
-      <button type="submit" class="btn btn-primary">
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width:16px;height:16px"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
-        Confirm
-      </button>
+      <button type="submit" class="btn btn-primary">{{ btn_label }}</button>
       <a href="{% url 'dashboard' %}" class="btn btn-outline">Cancel</a>
     </div>
   </form>
@@ -80,10 +56,25 @@
 {% block extra_js %}
 <script>
   setupCascadingDropdowns({
-    schoolSel: 'school',
-    productSel: 'product',
-    sizeSel: 'size',
-    stockDisplay: 'stock-display',
+    schoolSel: 'school', productSel: 'product', sizeSel: 'size', stockDisplay: 'stock-display',
   });
+
+  function buildConfirmMsg() {
+    var school = document.getElementById('school');
+    var product = document.getElementById('product');
+    var size = document.getElementById('size');
+    var qty = document.getElementById('quantity').value;
+    var schoolText = school.options[school.selectedIndex] ? school.options[school.selectedIndex].text : '';
+    var productText = product.options[product.selectedIndex] ? product.options[product.selectedIndex].text : '';
+    var sizeText = size.options[size.selectedIndex] ? size.options[size.selectedIndex].text : '';
+    var action = '{{ action }}';
+    if (action === 'stock_in') {
+      return 'Add <strong>' + qty + '</strong> pieces of <strong>' + productText + ' (Size ' + sizeText + ')</strong> for <strong>' + schoolText + '</strong>?';
+    } else if (action === 'sale') {
+      return 'Record sale of <strong>' + qty + '</strong> pieces of <strong>' + productText + ' (Size ' + sizeText + ')</strong> for <strong>' + schoolText + '</strong>?<br><br>Stock will be reduced.';
+    } else {
+      return 'Return <strong>' + qty + '</strong> pieces of <strong>' + productText + ' (Size ' + sizeText + ')</strong> for <strong>' + schoolText + '</strong>?<br><br>Stock will be added back.';
+    }
+  }
 </script>
 {% endblock %}

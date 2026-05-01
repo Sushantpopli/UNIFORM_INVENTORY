@@ -1,58 +1,37 @@
 {% extends 'base.html' %}
-{% block title %}Low Stock Report{% endblock %}
+{% block title %}Low Stock Alerts — UniStock{% endblock %}
 {% block nav_lowstock %}active{% endblock %}
-{% block page_title %}Low Stock Report{% endblock %}
+{% block page_title %}Low Stock Alerts{% endblock %}
+{% block page_sub %}Items that need restocking{% endblock %}
 
 {% block content %}
 {% if items %}
 <div class="card" style="padding:0;">
   <div class="table-wrap">
     <table>
-      <thead>
-        <tr>
-          <th>School</th>
-          <th>Product</th>
-          <th>Size</th>
-          <th>Stock</th>
-          <th>Threshold</th>
-          <th>Status</th>
-          <th>Action</th>
-        </tr>
-      </thead>
+      <thead><tr><th>School</th><th>Product</th><th>Size</th><th>Stock</th><th>Status</th><th>Action</th></tr></thead>
       <tbody>
         {% for item in items %}
         <tr>
           <td><strong>{{ item.school.name }}</strong></td>
           <td>{{ item.product.name }}</td>
           <td><strong>{{ item.size.size_value }}</strong></td>
-          <td>
-            <strong class="{% if item.stock == 0 %}text-red{% else %}text-muted{% endif %}">
-              {{ item.stock }}
-            </strong>
-          </td>
-          <td class="text-muted">{{ item.low_stock_threshold }}</td>
-          <td>
-            <span class="stock-badge badge-{{ item.stock_status }}">
-              {% if item.stock == 0 %}Out of Stock{% else %}Low{% endif %}
-            </span>
-          </td>
-          <td>
-            <a href="{% url 'stock_in' %}" class="btn btn-success" style="font-size:0.75rem;padding:5px 12px;">
-              + Restock
-            </a>
-          </td>
+          <td><span class="stock-val {% if item.stock == 0 %}out{% else %}low{% endif %}">{{ item.stock }}</span></td>
+          <td><span class="stock-badge {% if item.stock == 0 %}badge-out{% else %}badge-low{% endif %}">{% if item.stock == 0 %}Out of Stock{% else %}Low{% endif %}</span></td>
+          <td><a href="{% url 'stock_in' %}" class="btn btn-success btn-sm">+ Add Stock</a></td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
 </div>
+{% include 'includes/pagination.html' %}
 {% else %}
 <div class="card">
   <div class="empty-state">
-    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-    <h3>All good! No low stock items.</h3>
-    <p>Every product is above its threshold. Keep it up!</p>
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+    <h3>All stocked up!</h3>
+    <p>No items are below their threshold right now.</p>
   </div>
 </div>
 {% endif %}

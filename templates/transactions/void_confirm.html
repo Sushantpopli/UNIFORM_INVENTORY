@@ -1,0 +1,40 @@
+{% extends 'base.html' %}
+{% block title %}Cancel Entry — UniStock{% endblock %}
+{% block nav_history %}active{% endblock %}
+{% block page_title %}Cancel Entry{% endblock %}
+{% block page_sub %}This will reverse the stock change{% endblock %}
+
+{% block content %}
+<div class="form-card card">
+  <div class="mb-6">
+    <div style="font-size:1rem;font-weight:800;margin-bottom:12px;">Entry Details</div>
+    <table style="font-size:0.88rem;">
+      <tr><td class="text-muted" style="padding:6px 20px 6px 0">Date</td><td><strong>{{ tx.created_at|date:"d M Y, H:i" }}</strong></td></tr>
+      <tr><td class="text-muted" style="padding:6px 20px 6px 0">School</td><td><strong>{{ tx.school_product.school.name }}</strong></td></tr>
+      <tr><td class="text-muted" style="padding:6px 20px 6px 0">Product</td><td><strong>{{ tx.school_product.product.name }}</strong></td></tr>
+      <tr><td class="text-muted" style="padding:6px 20px 6px 0">Size</td><td><strong>{{ tx.school_product.size.size_value }}</strong></td></tr>
+      <tr><td class="text-muted" style="padding:6px 20px 6px 0">Type</td><td><span class="tx-chip tx-{{ tx.transaction_type }}">{{ tx.get_transaction_type_display }}</span></td></tr>
+      <tr><td class="text-muted" style="padding:6px 20px 6px 0">Quantity</td><td><strong style="font-size:1.2rem">{{ tx.quantity }}</strong></td></tr>
+    </table>
+  </div>
+
+  <div style="background:var(--red-dim);border:1px solid rgba(239,68,68,0.2);border-radius:var(--radius-sm);padding:14px 18px;margin-bottom:20px;">
+    <div style="font-weight:700;color:var(--red);margin-bottom:4px;">Warning</div>
+    <div style="font-size:0.85rem;color:var(--text-dim);">
+      This will cancel this entry and <strong>reverse the stock change</strong>. The stock count will be corrected automatically.
+    </div>
+  </div>
+
+  <form method="POST">
+    {% csrf_token %}
+    <div class="form-group mb-4">
+      <label for="reason">Reason for cancelling <span style="color:var(--text-muted);font-weight:400">(optional)</span></label>
+      <input type="text" name="reason" id="reason" placeholder="e.g. wrong entry, typed wrong size"/>
+    </div>
+    <div class="flex gap-2">
+      <button type="submit" class="btn btn-danger">Yes, Cancel This Entry</button>
+      <a href="{% url 'transaction_history' %}" class="btn btn-outline">Go Back</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

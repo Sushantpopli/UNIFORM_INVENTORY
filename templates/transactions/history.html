@@ -1,0 +1,83 @@
+{% extends 'base.html' %}
+{% block title %}History — UniStock{% endblock %}
+{% block nav_history %}active{% endblock %}
+{% block page_title %}Transaction History{% endblock %}
+{% block page_sub %}All stock changes recorded{% endblock %}
+
+{% block content %}
+<form method="GET" class="filter-bar">
+  <div class="form-group">
+    <label>School</label>
+    <select name="school" onchange="this.form.submit()">
+      <option value="">All Schools</option>
+      {% for s in schools %}<option value="{{ s.id }}" {% if selected_school == s.id|stringformat:"s" %}selected{% endif %}>{{ s.name }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="form-group">
+    <label>Product</label>
+    <select name="product" onchange="this.form.submit()">
+      <option value="">All Products</option>
+      {% for p in products %}<option value="{{ p.id }}" {% if selected_product == p.id|stringformat:"s" %}selected{% endif %}>{{ p.name }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="form-group">
+    <label>Type</label>
+    <select name="type" onchange="this.form.submit()">
+      <option value="">All Types</option>
+      <option value="RESTOCK" {% if selected_type == 'RESTOCK' %}selected{% endif %}>Stock Added</option>
+      <option value="SALE" {% if selected_type == 'SALE' %}selected{% endif %}>Sale</option>
+      <option value="RETURN" {% if selected_type == 'RETURN' %}selected{% endif %}>Return</option>
+      <option value="EXCHANGE_IN" {% if selected_type == 'EXCHANGE_IN' %}selected{% endif %}>Exchange In</option>
+      <option value="EXCHANGE_OUT" {% if selected_type == 'EXCHANGE_OUT' %}selected{% endif %}>Exchange Out</option>
+    </select>
+  </div>
+  <div class="form-group">
+    <label>Time</label>
+    <select name="range" onchange="this.form.submit()">
+      <option value="">All Time</option>
+      <option value="today" {% if selected_range == 'today' %}selected{% endif %}>Today</option>
+      <option value="week" {% if selected_range == 'week' %}selected{% endif %}>Last 7 Days</option>
+      <option value="month" {% if selected_range == 'month' %}selected{% endif %}>Last 30 Days</option>
+    </select>
+  </div>
+  <div class="form-group" style="flex:0;min-width:auto">
+    <label>&nbsp;</label>
+    <a href="{% url 'transaction_history' %}" class="btn btn-outline btn-sm">Clear</a>
+  </div>
+</form>
+
+<div class="card" style="padding:0;">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Date</th><th>School</th><th>Product</th><th>Size</th><th>Type</th><th>Qty</th><th>Note</th><th>Action</th></tr>
+      </thead>
+      <tbody>
+        {% for tx in txs %}
+        <tr{% if tx.is_void %} class="void-row"{% endif %}>
+          <td class="text-muted">{{ tx.created_at|date:"d M Y, H:i" }}</td>
+          <td><strong>{{ tx.school_product.school.name }}</strong></td>
+          <td>{{ tx.school_product.product.name }}</td>
+          <td><strong>{{ tx.school_product.size.size_value }}</strong></td>
+          <td><span class="tx-chip tx-{{ tx.transaction_type }}">{{ tx.get_transaction_type_display }}</span></td>
+          <td><strong>{{ tx.quantity }}</strong></td>
+          <td class="text-muted">{{ tx.note|default:"—"|truncatechars:30 }}</td>
+          <td>
+            {% if tx.is_void %}
+              <span class="text-muted" style="font-size:0.75rem">Cancelled</span>
+            {% else %}
+              <a href="{% url 'void_transaction' tx.pk %}" class="btn btn-danger btn-sm">Cancel</a>
+            {% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="8">
+          <div class="empty-state"><h3>No transactions found</h3><p>Try adjusting your filters.</p></div>
+        </td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% include 'includes/pagination.html' with items=txs %}
+{% endblock %}

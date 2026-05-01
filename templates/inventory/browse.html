@@ -1,10 +1,9 @@
 {% extends 'base.html' %}
-{% block title %}Browse Inventory{% endblock %}
+{% block title %}View Stock — UniStock{% endblock %}
 {% block nav_inventory %}active{% endblock %}
-{% block page_title %}Browse Inventory{% endblock %}
-{% block topbar_actions %}
-  <a href="{% url 'stock_in' %}" class="btn btn-primary" style="font-size:0.8rem;padding:8px 14px;">+ Stock IN</a>
-{% endblock %}
+{% block page_title %}View Stock{% endblock %}
+{% block page_sub %}Browse and filter all inventory items{% endblock %}
+{% block topbar_actions %}<a href="{% url 'stock_in' %}" class="btn btn-primary btn-sm">+ Add Stock</a>{% endblock %}
 
 {% block content %}
 <form method="GET" class="filter-bar">
@@ -12,22 +11,18 @@
     <label>School</label>
     <select name="school" onchange="this.form.submit()">
       <option value="">All Schools</option>
-      {% for s in schools %}
-      <option value="{{ s.id }}" {% if selected_school == s.id|stringformat:"s" %}selected{% endif %}>{{ s.name }}</option>
-      {% endfor %}
+      {% for s in schools %}<option value="{{ s.id }}" {% if selected_school == s.id|stringformat:"s" %}selected{% endif %}>{{ s.name }}</option>{% endfor %}
     </select>
   </div>
   <div class="form-group">
     <label>Product</label>
     <select name="product" onchange="this.form.submit()">
       <option value="">All Products</option>
-      {% for p in products %}
-      <option value="{{ p.id }}" {% if selected_product == p.id|stringformat:"s" %}selected{% endif %}>{{ p.name }}</option>
-      {% endfor %}
+      {% for p in products %}<option value="{{ p.id }}" {% if selected_product == p.id|stringformat:"s" %}selected{% endif %}>{{ p.name }}</option>{% endfor %}
     </select>
   </div>
   <div class="form-group">
-    <label>Stock Status</label>
+    <label>Status</label>
     <select name="status" onchange="this.form.submit()">
       <option value="">All</option>
       <option value="ok"  {% if selected_status == 'ok' %}selected{% endif %}>In Stock</option>
@@ -35,9 +30,9 @@
       <option value="out" {% if selected_status == 'out' %}selected{% endif %}>Out of Stock</option>
     </select>
   </div>
-  <div class="form-group" style="justify-content:flex-end;min-width:auto;">
+  <div class="form-group" style="flex:0;min-width:auto">
     <label>&nbsp;</label>
-    <a href="{% url 'inventory_browse' %}" class="btn btn-outline" style="font-size:0.8rem;padding:9px 14px;">Clear</a>
+    <a href="{% url 'inventory_browse' %}" class="btn btn-outline btn-sm">Clear</a>
   </div>
 </form>
 
@@ -45,15 +40,7 @@
   <div class="table-wrap">
     <table>
       <thead>
-        <tr>
-          <th>School</th>
-          <th>Product</th>
-          <th>Size</th>
-          <th>Stock</th>
-          <th>Threshold</th>
-          <th>Status</th>
-          <th>Price</th>
-        </tr>
+        <tr><th>School</th><th>Product</th><th>Size</th><th>Stock</th><th>Status</th><th>Price</th></tr>
       </thead>
       <tbody>
         {% for item in items %}
@@ -61,33 +48,22 @@
           <td><strong>{{ item.school.name }}</strong></td>
           <td>{{ item.product.name }}</td>
           <td><strong>{{ item.size.size_value }}</strong></td>
-          <td><strong>{{ item.stock }}</strong></td>
-          <td class="text-muted">{{ item.low_stock_threshold }}</td>
+          <td><span class="stock-val {{ item.stock_status }}">{{ item.stock }}</span></td>
           <td>
             <span class="stock-badge badge-{{ item.stock_status }}">
-              {% if item.stock_status == 'ok' %}In Stock
-              {% elif item.stock_status == 'low' %}Low
-              {% else %}Out
-              {% endif %}
+              {% if item.stock_status == 'ok' %}In Stock{% elif item.stock_status == 'low' %}Low{% else %}Out{% endif %}
             </span>
           </td>
-          <td class="text-muted">
-            {% if item.price %}&#8377;{{ item.price }}{% else %}&mdash;{% endif %}
-          </td>
+          <td class="text-muted">{% if item.price %}&#8377;{{ item.price }}{% else %}&mdash;{% endif %}</td>
         </tr>
         {% empty %}
-        <tr>
-          <td colspan="7">
-            <div class="empty-state">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/></svg>
-              <h3>No items found</h3>
-              <p>Try adjusting your filters.</p>
-            </div>
-          </td>
-        </tr>
+        <tr><td colspan="6">
+          <div class="empty-state"><h3>No items found</h3><p>Try adjusting your filters.</p></div>
+        </td></tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
 </div>
+{% include 'includes/pagination.html' %}
 {% endblock %}

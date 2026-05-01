@@ -1,0 +1,30 @@
+{% if items.has_other_pages %}
+<div class="pagination">
+  {% if items.has_previous %}
+    <a href="?{{ request.GET.urlencode }}&page=1">&laquo;</a>
+    <a href="?{{ request.GET.urlencode }}&page={{ items.previous_page_number }}">&lsaquo; Prev</a>
+  {% else %}
+    <span class="disabled">&laquo;</span>
+    <span class="disabled">&lsaquo; Prev</span>
+  {% endif %}
+
+  {% for num in items.paginator.page_range %}
+    {% if items.number == num %}
+      <span class="current">{{ num }}</span>
+    {% elif num > items.number|add:"-3" and num < items.number|add:"3" %}
+      <a href="?{{ request.GET.urlencode }}&page={{ num }}">{{ num }}</a>
+    {% endif %}
+  {% endfor %}
+
+  {% if items.has_next %}
+    <a href="?{{ request.GET.urlencode }}&page={{ items.next_page_number }}">Next &rsaquo;</a>
+    <a href="?{{ request.GET.urlencode }}&page={{ items.paginator.num_pages }}">&raquo;</a>
+  {% else %}
+    <span class="disabled">Next &rsaquo;</span>
+    <span class="disabled">&raquo;</span>
+  {% endif %}
+</div>
+<div class="page-info">
+  Page {{ items.number }} of {{ items.paginator.num_pages }} &bull; {{ total_count }} items total
+</div>
+{% endif %}

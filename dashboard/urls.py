@@ -20,6 +20,10 @@ urlpatterns = [
     path('return/', views.return_item, name='return_item'),
     path('exchange/', views.exchange, name='exchange'),
 
+    # Transaction History
+    path('history/', views.transaction_history, name='transaction_history'),
+    path('history/void/<int:pk>/', views.void_transaction, name='void_transaction'),
+
     # Manufacturing
     path('manufacturing/', views.manufacturing_list, name='manufacturing_list'),
     path('manufacturing/create/', views.manufacturing_create, name='manufacturing_create'),
