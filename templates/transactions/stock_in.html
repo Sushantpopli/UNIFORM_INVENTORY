@@ -1,0 +1,89 @@
+{% extends 'base.html' %}
+{% block title %}
+  {% if action == 'stock_in' %}Stock IN{% elif action == 'sale' %}Record Sale{% else %}Return{% endif %}
+{% endblock %}
+{% block nav_stockin %}{% if action == 'stock_in' %}active{% endif %}{% endblock %}
+{% block nav_sale %}{% if action == 'sale' %}active{% endif %}{% endblock %}
+{% block nav_return %}{% if action == 'return' %}active{% endif %}{% endblock %}
+{% block page_title %}{{ page_title }}{% endblock %}
+
+{% block content %}
+<div class="form-card card">
+  <p class="text-muted mb-4">
+    {% if action == 'stock_in' %}
+      Select the school, product and size, then enter the quantity arriving in stock.
+    {% elif action == 'sale' %}
+      Select what was sold. Stock will be reduced automatically.
+    {% else %}
+      Select the item being returned. Stock will be added back.
+    {% endif %}
+  </p>
+
+  <form method="POST">
+    {% csrf_token %}
+    <div class="form-grid">
+
+      <div class="form-group">
+        <label for="school">School</label>
+        <select name="school" id="school" required>
+          <option value="">— Select School —</option>
+          {% for s in schools %}
+          <option value="{{ s.id }}">{{ s.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="product">Product</label>
+        <select name="product" id="product" disabled required>
+          <option value="">— Select Product —</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="size">Size</label>
+        <select name="size" id="size" disabled required>
+          <option value="">— Select Size —</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>Current Stock</label>
+        <div class="stock-display" id="stock-display">
+          <span style="color:var(--text-muted)">— select above first —</span>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="quantity">Quantity</label>
+        <input type="number" name="quantity" id="quantity" min="1" value="1" required/>
+      </div>
+
+      <div class="form-group">
+        <label for="note">Note <span style="color:var(--text-muted);font-weight:400">(optional)</span></label>
+        <input type="text" name="note" id="note" placeholder="e.g. Morning batch, 3 pcs"/>
+      </div>
+
+    </div>
+
+    <div class="flex gap-2" style="margin-top:24px;">
+      <button type="submit" class="btn btn-primary">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width:16px;height:16px"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+        Confirm
+      </button>
+      <a href="{% url 'dashboard' %}" class="btn btn-outline">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  setupCascadingDropdowns({
+    schoolSel: 'school',
+    productSel: 'product',
+    sizeSel: 'size',
+    stockDisplay: 'stock-display',
+  });
+</script>
+{% endblock %}

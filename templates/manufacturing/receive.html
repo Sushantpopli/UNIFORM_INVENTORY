@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+{% block title %}Receive Stock — Order #{{ order.pk }}{% endblock %}
+{% block nav_mfg %}active{% endblock %}
+{% block page_title %}Receive Stock{% endblock %}
+
+{% block content %}
+<div class="form-card card">
+  <div class="mb-4">
+    <div class="section-title">Order #{{ order.pk }}</div>
+    <div class="text-muted" style="margin-top:8px;">
+      {{ order.school_product.school.name }} &bull;
+      {{ order.school_product.product.name }} &bull;
+      Size {{ order.school_product.size.size_value }}
+    </div>
+    <div style="margin-top:12px;display:flex;gap:24px;">
+      <div>
+        <div class="stat-label">Ordered</div>
+        <div style="font-size:1.4rem;font-weight:800;color:var(--gold)">{{ order.quantity_ordered }}</div>
+      </div>
+      <div>
+        <div class="stat-label">Received So Far</div>
+        <div style="font-size:1.4rem;font-weight:800;color:var(--emerald)">{{ order.quantity_received }}</div>
+      </div>
+      <div>
+        <div class="stat-label">Remaining</div>
+        <div style="font-size:1.4rem;font-weight:800;color:var(--blue)">{{ order.quantity_ordered|add:"-1"|add:"1" }}</div>
+      </div>
+    </div>
+  </div>
+
+  <form method="POST">
+    {% csrf_token %}
+    <div class="form-group" style="max-width:280px;">
+      <label for="quantity_received">Units Received Now</label>
+      <input type="number" name="quantity_received" id="quantity_received" min="1"
+             max="{{ order.quantity_ordered }}" value="1" required/>
+    </div>
+    <div class="flex gap-2" style="margin-top:24px;">
+      <button type="submit" class="btn btn-primary">Confirm Receipt &amp; Update Stock</button>
+      <a href="{% url 'manufacturing_list' %}" class="btn btn-outline">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

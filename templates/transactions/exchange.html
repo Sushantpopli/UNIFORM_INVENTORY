@@ -1,0 +1,72 @@
+{% extends 'base.html' %}
+{% block title %}Exchange{% endblock %}
+{% block nav_exchange %}active{% endblock %}
+{% block page_title %}Exchange — Swap Sizes{% endblock %}
+
+{% block content %}
+<div class="form-card card" style="max-width:780px;">
+  <p class="text-muted mb-4">
+    Select the school and product, then choose the <strong style="color:var(--amber)">returned size</strong> and the <strong style="color:var(--blue)">new size</strong> being given. Stock will update for both automatically.
+  </p>
+
+  <form method="POST">
+    {% csrf_token %}
+    <div class="form-grid">
+
+      <div class="form-group">
+        <label for="school">School</label>
+        <select name="school" id="school" required>
+          <option value="">— Select School —</option>
+          {% for s in schools %}
+          <option value="{{ s.id }}">{{ s.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="product">Product</label>
+        <select name="product" id="product" disabled required>
+          <option value="">— Select Product —</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="old_size" style="color:var(--amber)">Returned Size (coming back)</label>
+        <select name="old_size" id="old_size" disabled required>
+          <option value="">— Select Returned Size —</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="new_size" style="color:var(--blue)">New Size (going out)</label>
+        <select name="new_size" id="new_size" disabled required>
+          <option value="">— Select New Size —</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="quantity">Quantity</label>
+        <input type="number" name="quantity" id="quantity" min="1" value="1" required/>
+      </div>
+
+      <div class="form-group">
+        <label for="note">Note <span style="color:var(--text-muted);font-weight:400">(optional)</span></label>
+        <input type="text" name="note" id="note" placeholder="e.g. Size too big, swapped"/>
+      </div>
+
+    </div>
+
+    <div class="flex gap-2" style="margin-top:24px;">
+      <button type="submit" class="btn btn-primary">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width:16px;height:16px"><path stroke-linecap="round" stroke-linejoin="round" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"/></svg>
+        Confirm Exchange
+      </button>
+      <a href="{% url 'dashboard' %}" class="btn btn-outline">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>setupExchangeDropdowns();</script>
+{% endblock %}
