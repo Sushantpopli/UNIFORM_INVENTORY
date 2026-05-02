@@ -1,0 +1,75 @@
+{% extends 'base.html' %}
+{% block title %}Bill History — UniStock{% endblock %}
+{% block nav_bills %}active{% endblock %}
+{% block page_title %}Bill History{% endblock %}
+{% block page_sub %}All generated bills and receipts{% endblock %}
+
+{% block content %}
+<form method="GET" class="filter-bar">
+  <div class="form-group">
+    <label>Search</label>
+    <input type="text" name="q" placeholder="Bill No, Name, Phone" value="{{ query }}" style="padding: 10px 14px; font-size: 0.82rem;">
+  </div>
+  <div class="form-group">
+    <label>School</label>
+    <select class="searchable" name="school" onchange="this.form.submit()">
+      <option value="">All Schools</option>
+      {% for s in schools %}<option value="{{ s.id }}" {% if selected_school == s.id|stringformat:"s" %}selected{% endif %}>{{ s.code }} - {{ s.name }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="form-group">
+    <label>Time</label>
+    <select class="searchable" name="range" onchange="this.form.submit()">
+      <option value="">All Time</option>
+      <option value="today" {% if selected_range == 'today' %}selected{% endif %}>Today</option>
+      <option value="week" {% if selected_range == 'week' %}selected{% endif %}>Last 7 Days</option>
+      <option value="month" {% if selected_range == 'month' %}selected{% endif %}>Last 30 Days</option>
+    </select>
+  </div>
+  <div class="form-group" style="flex:0;min-width:auto">
+    <label>&nbsp;</label>
+    <a href="{% url 'bill_history' %}" class="btn btn-outline btn-sm">Clear</a>
+  </div>
+</form>
+
+<div class="card" style="padding:0;">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Bill No</th>
+          <th>Date</th>
+          <th>School</th>
+          <th>Customer</th>
+          <th>Mode</th>
+          <th style="text-align:right">Total</th>
+          <th style="text-align:center">Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for bill in bills %}
+        <tr{% if bill.is_void %} class="void-row"{% endif %}>
+          <td><strong>{{ bill.bill_number }}</strong></td>
+          <td class="text-muted">{{ bill.created_at|date:"d M Y, H:i" }}</td>
+          <td>{{ bill.school.name }}</td>
+          <td>
+            {% if bill.customer_name %}{{ bill.customer_name }}{% else %}<span class="text-muted">—</span>{% endif %}
+            {% if bill.customer_phone %}<br><span style="font-size:0.7rem" class="text-muted">{{ bill.customer_phone }}</span>{% endif %}
+          </td>
+          <td><span class="tx-chip tx-{{ bill.payment_mode }}">{{ bill.get_payment_mode_display }}</span></td>
+          <td style="text-align:right"><strong>₹{{ bill.total_amount }}</strong></td>
+          <td style="text-align:center">
+            <a href="{% url 'bill_print' bill.pk %}" class="btn btn-outline btn-sm" target="_blank">Print</a>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="7">
+          <div class="empty-state"><h3>No bills found</h3><p>Try adjusting your filters or create a new bill.</p></div>
+        </td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% include 'includes/pagination.html' with items=bills %}
+{% endblock %}

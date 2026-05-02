@@ -1,69 +1,177 @@
 {% extends 'base.html' %}
 {% block title %}View Stock — UniStock{% endblock %}
 {% block nav_inventory %}active{% endblock %}
-{% block page_title %}View Stock{% endblock %}
-{% block page_sub %}Browse and filter all inventory items{% endblock %}
+{% block page_title %}Inventory & Pricing Explorer{% endblock %}
+{% block page_sub %}Manage stock and pricing for specific schools or general items{% endblock %}
 {% block topbar_actions %}<a href="{% url 'stock_in' %}" class="btn btn-primary btn-sm">+ Add Stock</a>{% endblock %}
 
 {% block content %}
-<form method="GET" class="filter-bar">
-  <div class="form-group">
-    <label>School</label>
-    <select name="school" onchange="this.form.submit()">
-      <option value="">All Schools</option>
-      {% for s in schools %}<option value="{{ s.id }}" {% if selected_school == s.id|stringformat:"s" %}selected{% endif %}>{{ s.name }}</option>{% endfor %}
-    </select>
-  </div>
-  <div class="form-group">
-    <label>Product</label>
-    <select name="product" onchange="this.form.submit()">
-      <option value="">All Products</option>
-      {% for p in products %}<option value="{{ p.id }}" {% if selected_product == p.id|stringformat:"s" %}selected{% endif %}>{{ p.name }}</option>{% endfor %}
-    </select>
-  </div>
-  <div class="form-group">
-    <label>Status</label>
-    <select name="status" onchange="this.form.submit()">
-      <option value="">All</option>
-      <option value="ok"  {% if selected_status == 'ok' %}selected{% endif %}>In Stock</option>
-      <option value="low" {% if selected_status == 'low' %}selected{% endif %}>Low Stock</option>
-      <option value="out" {% if selected_status == 'out' %}selected{% endif %}>Out of Stock</option>
-    </select>
-  </div>
-  <div class="form-group" style="flex:0;min-width:auto">
-    <label>&nbsp;</label>
-    <a href="{% url 'inventory_browse' %}" class="btn btn-outline btn-sm">Clear</a>
-  </div>
-</form>
+<div style="display: flex; gap: 24px; align-items: flex-start;">
 
-<div class="card" style="padding:0;">
-  <div class="table-wrap">
-    <table>
-      <thead>
-        <tr><th>School</th><th>Product</th><th>Size</th><th>Stock</th><th>Status</th><th>Price</th></tr>
-      </thead>
-      <tbody>
-        {% for item in items %}
-        <tr>
-          <td><strong>{{ item.school.name }}</strong></td>
-          <td>{{ item.product.name }}</td>
-          <td><strong>{{ item.size.size_value }}</strong></td>
-          <td><span class="stock-val {{ item.stock_status }}">{{ item.stock }}</span></td>
-          <td>
-            <span class="stock-badge badge-{{ item.stock_status }}">
-              {% if item.stock_status == 'ok' %}In Stock{% elif item.stock_status == 'low' %}Low{% else %}Out{% endif %}
-            </span>
-          </td>
-          <td class="text-muted">{% if item.price %}&#8377;{{ item.price }}{% else %}&mdash;{% endif %}</td>
-        </tr>
-        {% empty %}
-        <tr><td colspan="6">
-          <div class="empty-state"><h3>No items found</h3><p>Try adjusting your filters.</p></div>
-        </td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
+  <!-- LEFT PANE: School / Category Selector -->
+  <div class="card" style="flex: 0 0 280px; padding: 0; overflow: hidden; position: sticky; top: 20px;">
+    <div style="padding: 16px; background: rgba(255,255,255,0.02); border-bottom: 1px solid var(--border);">
+      <h3 style="margin: 0; font-size: 0.9rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px;">Categories</h3>
+    </div>
+    <div style="max-height: calc(100vh - 200px); overflow-y: auto;">
+      <a href="?school=general" class="sidebar-item {% if selected_school == 'general' %}active{% endif %}">
+        <div style="font-size: 1.2rem; margin-right: 12px;">🌍</div>
+        <div>
+          <div style="font-weight: 700; color: var(--gold);">General Items</div>
+          <div style="font-size: 0.75rem; color: var(--text-muted);">Independent stock</div>
+        </div>
+      </a>
+      
+      {% for s in schools %}
+      <a href="?school={{ s.id }}" class="sidebar-item {% if selected_school == s.id|stringformat:'s' %}active{% endif %}">
+        <div style="width: 32px; height: 32px; background: var(--surface-2); border-radius: 6px; display: flex; align-items: center; justify-content: center; margin-right: 12px; font-weight: 800; font-size: 0.75rem; color: var(--text-muted);">
+          {{ s.code }}
+        </div>
+        <div>
+          <div style="font-weight: 700; color: var(--text);">{{ s.name }}</div>
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- RIGHT PANE: Inventory List -->
+  <div style="flex: 1;">
+    {% if not selected_school %}
+      <!-- Empty State -->
+      <div class="card" style="text-align: center; padding: 80px 20px;">
+        <div style="font-size: 4rem; opacity: 0.5; margin-bottom: 20px;">👈</div>
+        <h2 style="margin: 0 0 10px 0;">Select a Category</h2>
+        <p style="color: var(--text-muted); max-width: 400px; margin: 0 auto;">Choose "General Items" or a specific School from the left menu to view and update pricing for its products.</p>
+      </div>
+    {% else %}
+      
+      <!-- Sub-Filter Bar for the selected category -->
+      <div class="card" style="padding: 12px 16px; margin-bottom: 24px; display: flex; gap: 16px; align-items: center; background: rgba(11,24,48,0.6); backdrop-filter: blur(10px);">
+        <form method="GET" style="display: flex; gap: 16px; align-items: center; margin: 0; width: 100%;">
+          <input type="hidden" name="school" value="{{ selected_school }}">
+          
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase;">Product</span>
+            <select name="product" onchange="this.form.submit()" class="sub-select">
+              <option value="">All Products</option>
+              {% for p in products %}<option value="{{ p.id }}" {% if selected_product == p.id|stringformat:"s" %}selected{% endif %}>{{ p.name }}</option>{% endfor %}
+            </select>
+          </div>
+          
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase;">Status</span>
+            <select name="status" onchange="this.form.submit()" class="sub-select">
+              <option value="">All Status</option>
+              <option value="ok"  {% if selected_status == 'ok' %}selected{% endif %}>In Stock</option>
+              <option value="low" {% if selected_status == 'low' %}selected{% endif %}>Low Stock</option>
+              <option value="out" {% if selected_status == 'out' %}selected{% endif %}>Out of Stock</option>
+            </select>
+          </div>
+          
+          <div style="margin-left: auto;">
+            <a href="?school={{ selected_school }}" style="font-size: 0.8rem; color: var(--text-muted); text-decoration: none;">Clear Filters</a>
+          </div>
+        </form>
+      </div>
+
+      <!-- Grouped Inventory List -->
+      {% regroup items by product.name as grouped_items %}
+      
+      {% for group in grouped_items %}
+        <div class="card" style="padding: 0; margin-bottom: 24px; overflow: hidden;">
+          <!-- Product Header -->
+          <div style="background: rgba(255,255,255,0.03); padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center;">
+            <h2 style="margin: 0; font-size: 1.2rem; font-weight: 800; color: var(--text);">{{ group.grouper }}</h2>
+            <span style="margin-left: 12px; background: var(--surface-2); padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; color: var(--text-muted);">{{ group.list|length }} Sizes</span>
+          </div>
+          
+          <!-- Product Sizes Table -->
+          <table style="width: 100%; border-collapse: collapse;">
+            <thead>
+              <tr style="border-bottom: 1px solid var(--border);">
+                <th style="padding: 10px 20px; text-align: left; color: var(--text-muted); font-size: 0.75rem; font-weight: 600; text-transform: uppercase;">Size</th>
+                <th style="padding: 10px 20px; text-align: left; color: var(--text-muted); font-size: 0.75rem; font-weight: 600; text-transform: uppercase;">SKU</th>
+                <th style="padding: 10px 20px; text-align: center; color: var(--text-muted); font-size: 0.75rem; font-weight: 600; text-transform: uppercase;">Stock</th>
+                <th style="padding: 10px 20px; text-align: right; color: var(--text-muted); font-size: 0.75rem; font-weight: 600; text-transform: uppercase;">Price (₹)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in group.list %}
+              <tr style="border-bottom: 1px solid var(--border); transition: background 0.1s;" onmouseover="this.style.background='rgba(255,255,255,0.02)'" onmouseout="this.style.background='transparent'">
+                <td style="padding: 12px 20px; font-weight: 700; color: var(--text); font-size: 0.95rem;">
+                  {{ item.size.size_value }}
+                </td>
+                <td style="padding: 12px 20px;">
+                  <span style="font-family: monospace; color: var(--text-dim); font-size: 0.8rem; background: rgba(0,0,0,0.2); padding: 2px 6px; border-radius: 4px;">{{ item.sku_code }}</span>
+                </td>
+                <td style="padding: 12px 20px; text-align: center;">
+                  <div style="display: inline-flex; align-items: center; gap: 8px;">
+                    <div style="width: 8px; height: 8px; border-radius: 50%; {% if item.stock_status == 'out' %}background: var(--red); box-shadow: 0 0 6px var(--red);{% elif item.stock_status == 'low' %}background: var(--gold); box-shadow: 0 0 6px var(--gold);{% else %}background: var(--emerald); box-shadow: 0 0 6px var(--emerald);{% endif %}"></div>
+                    <span style="font-weight: 800; font-size: 1rem; color: var(--text);">{{ item.stock }}</span>
+                  </div>
+                </td>
+                <td style="padding: 12px 20px; text-align: right;">
+                  <form method="POST" action="{% url 'inventory_update_price' item.pk %}" style="display: inline-flex; align-items: center; margin: 0; background: var(--surface-2); border-radius: 6px; padding: 2px 4px; border: 1px solid transparent; transition: border-color 0.2s;" onfocusin="this.style.borderColor='var(--blue)'" onfocusout="this.style.borderColor='transparent'">
+                    {% csrf_token %}
+                    <span style="color: var(--text-dim); font-size: 0.8rem; padding-left: 6px;">₹</span>
+                    <input type="number" name="price" value="{{ item.price|default_if_none:'' }}" step="0.01" style="background: transparent; border: none; color: var(--text); font-weight: 700; font-size: 0.95rem; width: 70px; text-align: right; outline: none; padding: 6px;" placeholder="0.00" onfocus="this.nextElementSibling.style.opacity=1" onblur="setTimeout(()=>this.nextElementSibling.style.opacity=0, 200)"/>
+                    <button type="submit" style="background: var(--blue); color: #fff; border: none; border-radius: 4px; font-size: 0.7rem; font-weight: 800; padding: 6px 10px; margin-left: 4px; cursor: pointer; opacity: 0; transition: opacity 0.2s, transform 0.1s;">Save</button>
+                  </form>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% empty %}
+        <div class="card" style="text-align: center; padding: 60px 20px;">
+          <h3 style="color: var(--text-muted);">No items found in this category.</h3>
+        </div>
+      {% endfor %}
+      
+      <!-- Only show pagination if needed (usually grouped items fit on one page due to limit=500) -->
+      {% if items.paginator.num_pages > 1 %}
+        {% include 'includes/pagination.html' %}
+      {% endif %}
+
+    {% endif %}
   </div>
 </div>
-{% include 'includes/pagination.html' %}
+
+<style>
+/* Sidebar Category Links */
+.sidebar-item {
+  display: flex;
+  align-items: center;
+  padding: 14px 16px;
+  text-decoration: none;
+  border-bottom: 1px solid rgba(255,255,255,0.02);
+  transition: background 0.1s, padding-left 0.2s;
+}
+.sidebar-item:hover {
+  background: rgba(255,255,255,0.03);
+  padding-left: 20px;
+}
+.sidebar-item.active {
+  background: rgba(var(--blue-rgb), 0.1);
+  border-left: 4px solid var(--blue);
+  padding-left: 20px;
+}
+.sidebar-item.active .sidebar-text {
+  color: #fff;
+}
+
+/* Sub-select styling */
+.sub-select {
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font-size: 0.85rem;
+  font-weight: 700;
+  outline: none;
+  cursor: pointer;
+}
+.sub-select option { background: var(--bg); }
+</style>
 {% endblock %}

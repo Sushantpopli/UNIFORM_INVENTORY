@@ -1,0 +1,73 @@
+{% extends 'base.html' %}
+{% block title %}Daily Sales — UniStock{% endblock %}
+{% block nav_summary %}active{% endblock %}
+{% block page_title %}Daily Sales Summary{% endblock %}
+{% block page_sub %}Sales overview for today ({{ today|date:"d M Y" }}){% endblock %}
+
+{% block content %}
+<div class="stats-grid">
+  <div class="stat-card stat-emerald">
+    <div class="stat-label">Today's Revenue</div>
+    <div class="stat-value">₹{{ total_revenue|default:"0.00" }}</div>
+  </div>
+  <div class="stat-card stat-blue">
+    <div class="stat-label">Bills Generated</div>
+    <div class="stat-value">{{ total_bills }}</div>
+  </div>
+</div>
+
+<div class="two-col mt-4">
+  <div class="card">
+    <div class="panel-title">Sales by School</div>
+    {% if school_sales %}
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>School</th><th style="text-align:center">Bills</th><th style="text-align:right">Revenue</th></tr>
+          </thead>
+          <tbody>
+            {% for s in school_sales %}
+            <tr>
+              <td><strong>{{ s.school__name }}</strong></td>
+              <td style="text-align:center">{{ s.bill_count }}</td>
+              <td style="text-align:right; font-weight:700; color:var(--emerald)">₹{{ s.total_revenue }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="empty-state">
+        <p>No sales recorded today.</p>
+      </div>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <div class="panel-title">Items Sold Today</div>
+    {% if items_sold %}
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Product</th><th>Size</th><th style="text-align:center">Qty</th><th style="text-align:right">Revenue</th></tr>
+          </thead>
+          <tbody>
+            {% for item in items_sold %}
+            <tr>
+              <td>{{ item.product_name }}</td>
+              <td><strong>{{ item.size_value }}</strong></td>
+              <td style="text-align:center; font-weight:700">{{ item.total_qty }}</td>
+              <td style="text-align:right">₹{{ item.total_revenue }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="empty-state">
+        <p>No items sold today.</p>
+      </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

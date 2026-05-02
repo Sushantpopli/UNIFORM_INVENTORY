@@ -2,7 +2,7 @@
 
 /* ─── Variables ─────────────────────────────────────────────────────────────── */
 :root {
-  --bg:          #050e1f;
+  --bg:          #040c1c;
   --surface:     #0c1a33;
   --surface-2:   #112040;
   --surface-3:   #162650;
@@ -21,7 +21,7 @@
   --text:        #f1f5f9;
   --text-muted:  #64748b;
   --text-dim:    #94a3b8;
-  --sidebar-w:   250px;
+  --sidebar-w:   260px;
   --radius:      14px;
   --radius-sm:   10px;
   --shadow:      0 8px 32px rgba(0,0,0,0.3);
@@ -56,8 +56,8 @@ button { cursor: pointer; font-family: inherit; }
 .sidebar {
   width: var(--sidebar-w);
   min-height: 100vh;
-  background: var(--surface);
-  border-right: 1px solid var(--border);
+  background: linear-gradient(180deg, #0b1830 0%, #060e1d 100%);
+  border-right: 1px solid rgba(255,255,255,0.05);
   display: flex; flex-direction: column;
   position: fixed; top: 0; left: 0; bottom: 0;
   z-index: 100;
@@ -72,7 +72,7 @@ button { cursor: pointer; font-family: inherit; }
   background: linear-gradient(135deg, var(--gold), #d97706);
   border-radius: 12px;
   display: flex; align-items: center; justify-content: center;
-  box-shadow: 0 4px 12px rgba(245,158,11,0.25);
+  box-shadow: 0 4px 20px rgba(245,158,11,0.4), inset 0 1px 0 rgba(255,255,255,0.2);
 }
 .brand-icon svg { width: 20px; height: 20px; color: #000; }
 .brand-name { font-size: 1.1rem; font-weight: 800; color: var(--text); letter-spacing: -0.5px; }
@@ -80,8 +80,8 @@ button { cursor: pointer; font-family: inherit; }
 
 .sidebar-nav { flex: 1; padding: 18px 14px; overflow-y: auto; }
 .nav-section-label {
-  font-size: 0.6rem; font-weight: 700; color: var(--text-muted);
-  letter-spacing: 1.2px; text-transform: uppercase; padding: 14px 10px 6px;
+  font-size: 0.55rem; font-weight: 800; color: rgba(255,255,255,0.18);
+  letter-spacing: 2px; text-transform: uppercase; padding: 18px 10px 6px;
 }
 .nav-item {
   display: flex; align-items: center; gap: 11px;
@@ -91,9 +91,8 @@ button { cursor: pointer; font-family: inherit; }
 }
 .nav-item:hover { background: rgba(255,255,255,0.04); color: var(--text); }
 .nav-item.active {
-  background: var(--gold-dim); color: var(--gold);
-  border: 1px solid rgba(245,158,11,0.18);
-  box-shadow: 0 2px 8px rgba(245,158,11,0.08);
+  background: rgba(245,158,11,0.09); color: var(--gold);
+  font-weight: 600; box-shadow: inset 0 0 0 1px rgba(245,158,11,0.12);
 }
 .nav-item svg { width: 18px; height: 18px; flex-shrink: 0; }
 .nav-item .badge {
@@ -108,7 +107,8 @@ button { cursor: pointer; font-family: inherit; }
 .topbar {
   padding: 18px 36px; border-bottom: 1px solid var(--border);
   display: flex; align-items: center; justify-content: space-between;
-  background: var(--surface); position: sticky; top: 0; z-index: 50;
+  background: rgba(6,13,30,0.82); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+  position: sticky; top: 0; z-index: 50;
 }
 .topbar-title { font-size: 1.15rem; font-weight: 800; letter-spacing: -0.3px; }
 .topbar-sub { font-size: 0.78rem; color: var(--text-muted); margin-top: 2px; }
@@ -126,10 +126,11 @@ button { cursor: pointer; font-family: inherit; }
 /* ─── Stat Cards ────────────────────────────────────────────────────────────── */
 .stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 16px; margin-bottom: 28px; }
 .stat-card {
-  background: var(--surface); border: 1px solid var(--border);
+  background: linear-gradient(145deg, var(--surface-2), var(--surface));
+  border: 1px solid var(--border);
   border-radius: var(--radius); padding: 22px 24px;
   display: flex; flex-direction: column; gap: 4px;
-  transition: all var(--transition);
+  transition: all 0.3s ease;
 }
 .stat-card:hover { border-color: var(--border-hover); transform: translateY(-2px); box-shadow: var(--shadow); }
 .stat-label { font-size: 0.68rem; font-weight: 700; color: var(--text-muted); letter-spacing: 0.8px; text-transform: uppercase; }
@@ -212,7 +213,7 @@ thead th {
 }
 tbody tr { border-bottom: 1px solid var(--border); transition: all var(--transition); }
 tbody tr:last-child { border-bottom: none; }
-tbody tr:hover { background: rgba(245,158,11,0.03); }
+tbody tr:hover { background: rgba(255,255,255,0.02); }
 td { padding: 12px 14px; color: var(--text-dim); vertical-align: middle; }
 td strong { color: var(--text); font-weight: 600; }
 .stock-val { font-size: 1.1rem; font-weight: 800; }
@@ -233,6 +234,11 @@ tr.void-row { opacity: 0.4; text-decoration: line-through; }
 .tx-RETURN      { background: rgba(245,158,11,0.10); color: var(--amber); }
 .tx-EXCHANGE_IN { background: rgba(168,85,247,0.10); color: var(--purple); }
 .tx-EXCHANGE_OUT{ background: rgba(239,68,68,0.10); color: var(--red); }
+.tx-BILL_SALE   { background: rgba(59,130,246,0.10); color: var(--blue); }
+
+.tx-CASH        { background: rgba(16,185,129,0.10); color: var(--emerald); }
+.tx-UPI         { background: rgba(168,85,247,0.10); color: var(--purple); }
+.tx-CARD        { background: rgba(59,130,246,0.10); color: var(--blue); }
 
 /* ─── Forms ─────────────────────────────────────────────────────────────────── */
 .form-card { max-width: 700px; }
@@ -255,6 +261,118 @@ input:focus, select:focus, textarea:focus {
 }
 select option { background: var(--surface-2); }
 textarea { resize: vertical; min-height: 80px; }
+
+/* ─── Mode Toggle (Scanner vs Manual) ───────────────────────────────────────── */
+.segment-wrapper { display: flex; justify-content: center; margin-bottom: 24px; }
+.segment-control {
+  display: inline-flex; background: rgba(0,0,0,0.4); border-radius: 99px;
+  padding: 5px; border: 1px solid rgba(255,255,255,0.05);
+  box-shadow: inset 0 2px 6px rgba(0,0,0,0.5);
+}
+.segment-btn {
+  padding: 10px 20px; border-radius: 99px;
+  font-size: 0.75rem; font-weight: 800; color: var(--text-muted);
+  cursor: pointer; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); border: none;
+  background: transparent; display: flex; align-items: center; gap: 8px;
+  text-transform: uppercase; letter-spacing: 0.5px;
+}
+.segment-btn.active {
+  background: linear-gradient(135deg, var(--gold), #d97706); color: #000;
+  box-shadow: 0 4px 14px rgba(245,158,11,0.35);
+}
+.segment-btn svg { width: 16px; height: 16px; }
+
+/* ─── POS Scanner Input ───────────────────────────────────────────────── */
+.scan-field-wrap {
+  display: flex; align-items: stretch;
+  background: var(--bg);
+  border: 2px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  margin-bottom: 24px;
+}
+.scan-field-wrap:focus-within {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 4px rgba(245,158,11,0.12);
+}
+.scan-field-wrap.success {
+  border-color: var(--emerald);
+  box-shadow: 0 0 0 4px rgba(16,185,129,0.12);
+  animation: flash-green 0.35s ease;
+}
+.scan-field-wrap.error {
+  border-color: var(--red);
+  box-shadow: 0 0 0 4px rgba(239,68,68,0.12);
+  animation: shake 0.35s ease;
+}
+@keyframes flash-green {
+  0% { background: var(--bg); } 30% { background: rgba(16,185,129,0.08); } 100% { background: var(--bg); }
+}
+@keyframes shake {
+  0%,100% { transform: translateX(0); } 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); }
+}
+.scan-icon-col {
+  display: flex; align-items: center; justify-content: center;
+  width: 60px; background: rgba(245,158,11,0.07);
+  border-right: 2px solid var(--border);
+  color: var(--gold); flex-shrink: 0;
+  transition: background 0.2s;
+}
+.scan-field-wrap:focus-within .scan-icon-col { background: rgba(245,158,11,0.14); }
+.scan-field-wrap.success .scan-icon-col { background: rgba(16,185,129,0.1); color: var(--emerald); border-color: var(--emerald); }
+.scan-field-wrap.error .scan-icon-col { background: rgba(239,68,68,0.1); color: var(--red); border-color: var(--red); }
+.scan-icon-col svg { width: 24px; height: 24px; display: block; }
+.scan-input {
+  flex: 1; background: transparent; border: none; outline: none;
+  color: var(--text); font-size: 1.15rem; font-weight: 600;
+  font-family: 'Inter', monospace; padding: 18px 20px;
+  letter-spacing: 0.5px; box-shadow: none !important;
+}
+.scan-input::placeholder { color: var(--text-muted); font-weight: 400; font-size: 1rem; }
+.scan-status {
+  display: flex; align-items: center; padding: 0 18px;
+  font-size: 0.75rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 1px; white-space: nowrap; opacity: 0;
+  transition: opacity 0.2s; color: var(--emerald);
+}
+.scan-field-wrap.success .scan-status,
+.scan-field-wrap.processing .scan-status { opacity: 1; }
+.scan-field-wrap.processing .scan-status { color: var(--text-muted); animation: blink 0.8s infinite; }
+@keyframes blink { 0%,100% { opacity:1; } 50% { opacity:0.3; } }
+
+/* Step label for exchange */
+.scan-step-label {
+  font-size: 0.7rem; font-weight: 800; text-transform: uppercase;
+  letter-spacing: 1.5px; color: var(--text-muted); margin-bottom: 8px;
+  display: flex; align-items: center; gap: 8px;
+}
+.scan-step-label .step-num {
+  width: 20px; height: 20px; border-radius: 50%;
+  background: var(--surface-3); border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.65rem; font-weight: 900; color: var(--text-muted);
+}
+.scan-step-label.done .step-num { background: var(--emerald); border-color: var(--emerald); color: #fff; }
+.scan-step-label.active .step-num { background: var(--gold); border-color: var(--gold); color: #000; }
+.scan-step-label.active { color: var(--gold); }
+.scan-step-label.done { color: var(--emerald); }
+
+/* ─── Exchange Stepper ──────────────────────────────────────────────────────── */
+.exchange-stepper { display: flex; gap: 16px; margin-bottom: 24px; }
+.exchange-step {
+  flex: 1; background: var(--surface-2); border-radius: 12px;
+  border: 1px solid var(--border); padding: 20px; position: relative;
+  text-align: center; transition: all 0.3s;
+}
+.exchange-step.active {
+  border-color: var(--gold); background: var(--surface-3);
+  box-shadow: 0 8px 24px rgba(245,158,11,0.1);
+}
+.exchange-step.done {
+  border-color: var(--emerald); background: rgba(16,185,129,0.05);
+}
+
 
 .stock-display {
   background: var(--bg); border: 1px solid var(--border);

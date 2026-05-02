@@ -8,32 +8,74 @@
 <div class="form-card card" style="max-width:780px;">
   <form method="POST" onsubmit="return confirmAction(this, buildExchangeMsg())">
     {% csrf_token %}
-    <div class="form-grid">
-      <div class="form-group">
+    <div class="segment-wrapper">
+      <div class="segment-control">
+        <button type="button" class="segment-btn active" onclick="setMode('scanner')">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 013.75 9.375v-4.5zM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 01-1.125-1.125v-4.5zM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0113.5 9.375v-4.5zM13.5 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 01-1.125-1.125v-4.5z"/></svg>
+          Scanner
+        </button>
+        <button type="button" class="segment-btn" onclick="setMode('manual')">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.89 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.89l12.683-12.683z" /><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 7.125L16.862 4.487" /></svg>
+          Manual
+        </button>
+      </div>
+    </div>
+
+    <!-- Scanner Area -->
+    <div id="scanner-area">
+      <div class="scan-step-label active" id="lbl-old">
+        <span class="step-num">1</span>
+        Returned Item
+      </div>
+      <div class="scan-field-wrap" id="bar-old" style="margin-bottom:20px;">
+        <div class="scan-icon-col" style="color:var(--amber); background:rgba(245,158,11,0.07);">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="24" height="24"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 013.75 9.375v-4.5zM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 01-1.125-1.125v-4.5zM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0113.5 9.375v-4.5zM13.5 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 01-1.125-1.125v-4.5z"/></svg>
+        </div>
+        <input type="text" id="barcode-old" class="scan-input" placeholder="Scan the tag of the item being returned..." autocomplete="off" autofocus />
+        <div class="scan-status" id="status-old">✓ Found</div>
+      </div>
+
+      <div class="scan-step-label" id="lbl-new" style="opacity:0.4;">
+        <span class="step-num">2</span>
+        New Item Being Given
+      </div>
+      <div class="scan-field-wrap" id="bar-new" style="opacity:0.4; pointer-events:none;">
+        <div class="scan-icon-col" style="color:var(--blue); background:rgba(96,165,250,0.07);">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="24" height="24"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 013.75 9.375v-4.5zM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 01-1.125-1.125v-4.5zM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0113.5 9.375v-4.5zM13.5 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 01-1.125-1.125v-4.5z"/></svg>
+        </div>
+        <input type="text" id="barcode-new" class="scan-input" placeholder="Wait for step 1 to complete..." autocomplete="off" disabled />
+        <div class="scan-status" id="status-new">✓ Matched</div>
+      </div>
+    </div>
+
+    <!-- Manual Area -->
+    <div id="manual-area" class="form-grid" style="display:none; margin-bottom: 24px;">
         <label for="school">School</label>
-        <select name="school" id="school" required>
+        <select class="searchable" name="school" id="school" required>
           <option value="">-- Select School --</option>
-          {% for s in schools %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
+          {% for s in schools %}<option value="{{ s.id }}">{{ s.code }} - {{ s.name }}</option>{% endfor %}
         </select>
       </div>
       <div class="form-group">
         <label for="product">Product</label>
-        <select name="product" id="product" disabled required>
+        <select class="searchable" name="product" id="product" disabled required>
           <option value="">-- Select Product --</option>
         </select>
       </div>
       <div class="form-group">
         <label for="old_size" style="color:var(--amber)">Returned Size (coming back)</label>
-        <select name="old_size" id="old_size" disabled required>
+        <select class="searchable" name="old_size" id="old_size" disabled required>
           <option value="">-- Select Size --</option>
         </select>
       </div>
       <div class="form-group">
         <label for="new_size" style="color:var(--blue)">New Size (going out)</label>
-        <select name="new_size" id="new_size" disabled required>
+        <select class="searchable" name="new_size" id="new_size" disabled required>
           <option value="">-- Select Size --</option>
         </select>
       </div>
+    
+    <div class="form-grid" style="border-top:1px solid var(--border); padding-top:24px;">
       <div class="form-group">
         <label for="quantity">Quantity</label>
         <input type="number" name="quantity" id="quantity" min="1" value="1" required/>
@@ -54,6 +96,154 @@
 {% block extra_js %}
 <script>
   setupExchangeDropdowns();
+
+  function setMode(mode) {
+    const btns = document.querySelectorAll('.segment-btn');
+    btns.forEach(b => b.classList.remove('active'));
+    
+    if (mode === 'scanner') {
+      btns[0].classList.add('active');
+      document.getElementById('scanner-area').style.display = 'block';
+      document.getElementById('manual-area').style.display = 'none';
+      if(!barcodeNew.disabled) barcodeNew.focus(); else barcodeOld.focus();
+    } else {
+      btns[1].classList.add('active');
+      document.getElementById('scanner-area').style.display = 'none';
+      document.getElementById('manual-area').style.display = 'grid';
+    }
+  }
+
+  const barcodeOld = document.getElementById('barcode-old');
+  const barcodeNew = document.getElementById('barcode-new');
+  const barOld = document.getElementById('bar-old');
+  const barNew = document.getElementById('bar-new');
+  const statusOld = document.getElementById('status-old');
+  const statusNew = document.getElementById('status-new');
+  const containerNew = document.getElementById('container-new');
+  
+  const schoolSel = document.getElementById('school');
+  const productSel = document.getElementById('product');
+  const oldSize = document.getElementById('old_size');
+  const newSize = document.getElementById('new_size');
+
+  barcodeOld.addEventListener('keypress', async function(e) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const code = this.value.trim();
+      if (!code) return;
+      
+      this.disabled = true;
+      barOld.classList.add('processing');
+      statusOld.innerHTML = "Processing...";
+      
+      try {
+        const res = await fetch('/api/barcode-lookup/?code=' + encodeURIComponent(code));
+        if (!res.ok) throw new Error('Not found');
+        const item = await res.json();
+        
+        schoolSel.value = item.school_id;
+        
+        const pRes = await fetch('/api/products-for-school/?school_id=' + item.school_id);
+        const pData = await pRes.json();
+        productSel.innerHTML = '<option value="">-- Select Product --</option>';
+        pData.forEach(p => { productSel.innerHTML += '<option value="' + p.id + '">' + p.name + '</option>'; });
+        productSel.disabled = false;
+        productSel.value = item.product_id;
+        
+        const sRes = await fetch('/api/sizes-for-school-product/?school_id=' + item.school_id + '&product_id=' + item.product_id);
+        const sData = await sRes.json();
+        
+        oldSize.innerHTML = '<option value="">-- Select Size --</option>';
+        newSize.innerHTML = '<option value="">-- Select Size --</option>';
+        sData.forEach(s => { 
+            oldSize.innerHTML += '<option value="' + s.id + '">' + s.size_value + '</option>'; 
+            newSize.innerHTML += '<option value="' + s.id + '">' + s.size_value + '</option>'; 
+        });
+        oldSize.disabled = false;
+        newSize.disabled = false;
+        
+        oldSize.value = item.size_id;
+        
+        // Move to next step
+        statusOld.innerHTML = "✓ Found";
+        barOld.classList.remove('processing');
+        barOld.classList.add('success');
+        setTimeout(() => { barOld.classList.remove('success'); }, 700);
+        
+        // Unlock step 2
+        document.getElementById('bar-new').style.opacity = '1';
+        document.getElementById('bar-new').style.pointerEvents = 'auto';
+        document.getElementById('lbl-new').style.opacity = '1';
+        document.getElementById('lbl-new').classList.add('active');
+        document.getElementById('lbl-old').classList.remove('active');
+        document.getElementById('lbl-old').classList.add('done');
+        
+        barcodeNew.disabled = false;
+        barcodeNew.placeholder = "Now scan the NEW item being handed to customer...";
+        barcodeNew.focus();
+        
+      } catch (err) {
+        alert("Returned item barcode not found!");
+        this.value = '';
+        this.disabled = false;
+        barOld.classList.remove('processing');
+        barOld.classList.add('error');
+        setTimeout(() => { barOld.classList.remove('error'); }, 700);
+        this.focus();
+      }
+    }
+  });
+
+  barcodeNew.addEventListener('keypress', async function(e) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const code = this.value.trim();
+      if (!code) return;
+      
+      this.disabled = true;
+      barNew.classList.add('processing');
+      statusNew.innerHTML = "Processing...";
+      
+      try {
+        const res = await fetch('/api/barcode-lookup/?code=' + encodeURIComponent(code));
+        if (!res.ok) throw new Error('Not found');
+        const item = await res.json();
+        
+        // Verify it's the exact same product type
+        if (item.product_id != productSel.value || item.school_id != schoolSel.value) {
+            alert("Mismatch! The new item must be the exact same product as the returned item for a Size Exchange. If they want a different item, use the Return and Generate Bill pages separately.");
+            this.value = '';
+            this.disabled = false;
+            barNew.classList.remove('processing');
+            this.focus();
+            return;
+        }
+        
+        newSize.value = item.size_id;
+        
+        // Ready! Focus quantity.
+        statusNew.innerHTML = "✓ Matched";
+        barNew.classList.remove('processing');
+        barNew.classList.add('success');
+        document.getElementById('lbl-new').classList.remove('active');
+        document.getElementById('lbl-new').classList.add('done');
+        setTimeout(() => {
+            barNew.classList.remove('success');
+            setMode('manual'); // Show what was selected for confirmation
+            document.getElementById('quantity').focus();
+        }, 600);
+        
+      } catch (err) {
+        alert("New item barcode not found!");
+        this.value = '';
+        this.disabled = false;
+        barNew.classList.remove('processing');
+        barNew.classList.add('error');
+        setTimeout(() => { barNew.classList.remove('error'); }, 700);
+        this.focus();
+      }
+    }
+  });
 
   function buildExchangeMsg() {
     var oldSize = document.getElementById('old_size');

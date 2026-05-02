@@ -1,0 +1,246 @@
+{% extends 'base.html' %}
+{% block title %}Setup — UniStock{% endblock %}
+{% block nav_setup %}active{% endblock %}
+{% block page_title %}Setup & Master Data{% endblock %}
+{% block page_sub %}Manage schools, products, sizes and SKU links{% endblock %}
+
+{% block content %}
+
+<!-- Stat Pills -->
+<div style="display:flex; gap:12px; margin-bottom:24px; flex-wrap:wrap;">
+  <div style="display:flex; align-items:center; gap:10px; background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:10px 18px;">
+    <span style="font-size:1.4rem; font-weight:900; color:var(--blue);">{{ school_count }}</span>
+    <span style="font-size:0.72rem; color:var(--text-muted); font-weight:600; text-transform:uppercase; letter-spacing:0.8px;">Schools</span>
+  </div>
+  <div style="display:flex; align-items:center; gap:10px; background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:10px 18px;">
+    <span style="font-size:1.4rem; font-weight:900; color:var(--gold);">{{ product_count }}</span>
+    <span style="font-size:0.72rem; color:var(--text-muted); font-weight:600; text-transform:uppercase; letter-spacing:0.8px;">Products</span>
+  </div>
+  <div style="display:flex; align-items:center; gap:10px; background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:10px 18px;">
+    <span style="font-size:1.4rem; font-weight:900; color:var(--emerald);">{{ sku_count }}</span>
+    <span style="font-size:0.72rem; color:var(--text-muted); font-weight:600; text-transform:uppercase; letter-spacing:0.8px;">SKU Links</span>
+  </div>
+</div>
+
+<!-- Tab Bar -->
+<div style="display:flex; gap:4px; margin-bottom:20px; background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:5px; width:fit-content;">
+  <button class="setup-tab active" onclick="switchTab('schools')" id="tab-schools">🏫 Schools</button>
+  <button class="setup-tab" onclick="switchTab('products')" id="tab-products">👕 Products</button>
+  <button class="setup-tab" onclick="switchTab('sizes')" id="tab-sizes">📏 Sizes</button>
+  <button class="setup-tab" onclick="switchTab('link')" id="tab-link">🔗 Link SKUs</button>
+</div>
+
+<!-- ── SCHOOLS TAB ── -->
+<div id="panel-schools" class="setup-panel">
+  <div class="card" style="max-width:640px;">
+    <form method="POST" action="{% url 'setup_school_add' %}" style="display:grid; grid-template-columns:1fr 120px auto; gap:10px; align-items:end; margin-bottom:18px;">
+      {% csrf_token %}
+      <div class="form-group" style="margin:0;">
+        <label>School Name</label>
+        <input type="text" name="name" placeholder="e.g. DPS Bhubaneswar" required />
+      </div>
+      <div class="form-group" style="margin:0;">
+        <label>Code</label>
+        <input type="text" name="code" placeholder="DPS" maxlength="20" required />
+      </div>
+      <button type="submit" class="btn btn-primary" style="align-self:end;">+ Add</button>
+    </form>
+    <div style="overflow-y:auto; max-height:380px;">
+      <table style="width:100%">
+        <thead><tr><th>#</th><th>School Name</th><th>Code</th><th></th></tr></thead>
+        <tbody>
+          {% for s in schools %}
+          <tr>
+            <td style="color:var(--text-muted); width:36px;">{{ forloop.counter }}</td>
+            <td><strong>{{ s.name }}</strong></td>
+            <td><span style="font-size:0.72rem; background:var(--surface-2); padding:2px 8px; border-radius:6px; color:var(--text-muted);">{{ s.code }}</span></td>
+            <td style="text-align:right;">
+              <form method="POST" action="{% url 'setup_school_delete' s.pk %}" onsubmit="return confirm('Delete {{ s.name }}?')" style="display:inline;">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-danger btn-sm">✕</button>
+              </form>
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="4" style="text-align:center; padding:24px; color:var(--text-muted);">No schools added yet.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ── PRODUCTS TAB ── -->
+<div id="panel-products" class="setup-panel" style="display:none;">
+  <div class="card" style="max-width:480px;">
+    <form method="POST" action="{% url 'setup_product_add' %}" style="display:grid; grid-template-columns:1fr auto; gap:10px; align-items:end; margin-bottom:18px;">
+      {% csrf_token %}
+      <div class="form-group" style="margin:0;">
+        <label>Product Name</label>
+        <input type="text" name="name" placeholder="e.g. Boys White Shirt" required />
+      </div>
+      <button type="submit" class="btn btn-primary">+ Add</button>
+    </form>
+    <div style="overflow-y:auto; max-height:380px;">
+      <table style="width:100%">
+        <thead><tr><th>#</th><th>Product</th><th></th></tr></thead>
+        <tbody>
+          {% for p in products %}
+          <tr>
+            <td style="color:var(--text-muted); width:36px;">{{ forloop.counter }}</td>
+            <td><strong>{{ p.name }}</strong></td>
+            <td style="text-align:right;">
+              <form method="POST" action="{% url 'setup_product_delete' p.pk %}" onsubmit="return confirm('Delete {{ p.name }}?')" style="display:inline;">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-danger btn-sm">✕</button>
+              </form>
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="3" style="text-align:center; padding:24px; color:var(--text-muted);">No products added yet.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ── SIZES TAB ── -->
+<div id="panel-sizes" class="setup-panel" style="display:none;">
+  <div class="card" style="max-width:560px;">
+    <form method="POST" action="{% url 'setup_size_add' %}" style="display:grid; grid-template-columns:1fr 140px auto; gap:10px; align-items:end; margin-bottom:18px;">
+      {% csrf_token %}
+      <div class="form-group" style="margin:0;">
+        <label>Product</label>
+        <select name="product_id" required class="searchable">
+          <option value="">-- Select --</option>
+          {% for p in products %}<option value="{{ p.pk }}">{{ p.name }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="form-group" style="margin:0;">
+        <label>Size Value</label>
+        <input type="text" name="size_value" placeholder="e.g. 28 / S / XL" required />
+      </div>
+      <button type="submit" class="btn btn-primary">+ Add</button>
+    </form>
+    <div style="overflow-y:auto; max-height:380px;">
+      <table style="width:100%">
+        <thead><tr><th>Product</th><th>Size</th><th></th></tr></thead>
+        <tbody>
+          {% for sz in sizes %}
+          <tr>
+            <td>{{ sz.product.name }}</td>
+            <td><strong>{{ sz.size_value }}</strong></td>
+            <td style="text-align:right;">
+              <form method="POST" action="{% url 'setup_size_delete' sz.pk %}" onsubmit="return confirm('Delete this size?')" style="display:inline;">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-danger btn-sm">✕</button>
+              </form>
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="3" style="text-align:center; padding:24px; color:var(--text-muted);">No sizes added yet.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ── LINK SKUs TAB ── -->
+<div id="panel-link" class="setup-panel" style="display:none;">
+  <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; max-width:860px;">
+
+    <!-- Bulk link -->
+    <div class="card">
+      <div style="font-size:0.88rem; font-weight:800; margin-bottom:4px;">⚡ Bulk Link — All Sizes</div>
+      <div style="font-size:0.78rem; color:var(--text-muted); margin-bottom:16px;">Links every size of a product to a school in one click.</div>
+      <form method="POST" action="{% url 'setup_link_bulk' %}">
+        {% csrf_token %}
+        <div class="form-group" style="margin-bottom:10px;">
+          <label>School</label>
+          <select name="school_id" required class="searchable">
+            <option value="">-- Select School --</option>
+            <option value="general" style="font-weight:bold; color:var(--gold);">🌍 General Item (No School)</option>
+            {% for s in schools %}<option value="{{ s.pk }}">{{ s.code }} - {{ s.name }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="form-group" style="margin-bottom:10px;">
+          <label>Product</label>
+          <select name="product_id" required class="searchable">
+            <option value="">-- Select Product --</option>
+            {% for p in products %}<option value="{{ p.pk }}">{{ p.name }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="form-group" style="margin-bottom:16px;">
+          <label>Price ₹ (optional)</label>
+          <input type="number" name="price" step="0.01" placeholder="Leave blank to set later" />
+        </div>
+        <button type="submit" class="btn btn-primary" style="width:100%;">Link All Sizes →</button>
+      </form>
+    </div>
+
+    <!-- Single link -->
+    <div class="card">
+      <div style="font-size:0.88rem; font-weight:800; margin-bottom:4px;">🔗 Single Size Link</div>
+      <div style="font-size:0.78rem; color:var(--text-muted); margin-bottom:16px;">For when a school stocks only specific sizes.</div>
+      <form method="POST" action="{% url 'setup_link_add' %}">
+        {% csrf_token %}
+        <div class="form-group" style="margin-bottom:10px;">
+          <label>School</label>
+          <select name="school_id" required class="searchable">
+            <option value="">-- Select School --</option>
+            <option value="general" style="font-weight:bold; color:var(--gold);">🌍 General Item (No School)</option>
+            {% for s in schools %}<option value="{{ s.pk }}">{{ s.code }} - {{ s.name }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="form-group" style="margin-bottom:10px;">
+          <label>Product</label>
+          <select name="product_id" required class="searchable">
+            <option value="">-- Select Product --</option>
+            {% for p in products %}<option value="{{ p.pk }}">{{ p.name }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="form-group" style="margin-bottom:10px;">
+          <label>Size</label>
+          <select name="size_id" required class="searchable">
+            <option value="">-- Select Size --</option>
+            {% for sz in sizes %}<option value="{{ sz.pk }}">{{ sz.product.name }} — {{ sz.size_value }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="form-group" style="margin-bottom:16px;">
+          <label>Price ₹ (optional)</label>
+          <input type="number" name="price" step="0.01" placeholder="Leave blank" />
+        </div>
+        <button type="submit" class="btn btn-outline" style="width:100%;">Add Link</button>
+      </form>
+    </div>
+
+  </div>
+</div>
+
+<style>
+.setup-tab {
+  padding: 8px 18px; border-radius: 8px; border: none; background: transparent;
+  font-size: 0.8rem; font-weight: 600; color: var(--text-muted);
+  cursor: pointer; transition: all 0.2s; white-space: nowrap;
+}
+.setup-tab.active { background: var(--gold); color: #000; font-weight: 700; }
+.setup-tab:hover:not(.active) { color: var(--text); background: rgba(255,255,255,0.05); }
+</style>
+
+<script>
+function switchTab(name) {
+  document.querySelectorAll('.setup-panel').forEach(p => p.style.display = 'none');
+  document.querySelectorAll('.setup-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('panel-' + name).style.display = 'block';
+  document.getElementById('tab-' + name).classList.add('active');
+  // Remember tab
+  sessionStorage.setItem('setup_tab', name);
+}
+// Restore last tab
+var last = sessionStorage.getItem('setup_tab');
+if (last) switchTab(last);
+</script>
+
+{% endblock %}

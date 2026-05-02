@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Print Barcodes - {{ sp.sku_code }}</title>
+  <style>
+    body {
+      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      background: #f1f5f9;
+      color: #000;
+    }
+    
+    /* A4 Dimensions */
+    .sheet {
+      width: 210mm;
+      min-height: 297mm;
+      padding: 10mm;
+      margin: 20px auto;
+      background: #fff;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      box-sizing: border-box;
+      
+      /* Grid Layout for Stickers - roughly 4 columns for A4 */
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      grid-auto-rows: max-content;
+      gap: 5mm;
+      align-content: start;
+    }
+    
+    .sticker {
+      border: 1px dashed #ccc; /* Helps with cutting if printing on plain paper */
+      padding: 5mm;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      height: 38mm; /* Approximate height for a small retail sticker */
+      overflow: hidden;
+      box-sizing: border-box;
+    }
+    
+    .shop-name {
+      font-size: 8px;
+      font-weight: bold;
+      text-transform: uppercase;
+      margin-bottom: 2px;
+      white-space: nowrap;
+      overflow: hidden;
+    }
+    
+    .product-info {
+      font-size: 8px;
+      margin-bottom: 2px;
+      line-height: 1.2;
+      display: flex;
+      justify-content: space-between;
+      width: 100%;
+    }
+    
+    .price {
+      font-weight: bold;
+      font-size: 9px;
+    }
+
+    .barcode-wrap {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      margin: 2px 0;
+    }
+    
+    .barcode-wrap svg {
+      width: 100%;
+      height: auto;
+      max-height: 16mm;
+    }
+    
+    .sku-text {
+      font-size: 9px;
+      letter-spacing: 1px;
+      font-family: monospace;
+    }
+
+    /* Print styling */
+    @media print {
+      body { background: #fff; }
+      .sheet {
+        margin: 0; padding: 10mm; box-shadow: none;
+        page-break-after: always;
+      }
+      .no-print { display: none !important; }
+      .sticker { border: 1px solid transparent; } /* Remove dashed lines if using actual pre-cut sticker paper, but let's keep dashed for normal paper just very light */
+      .sticker { border: 1px dashed #eee; }
+    }
+    
+    .top-bar {
+      text-align: center;
+      padding: 20px;
+    }
+    .btn {
+      padding: 10px 20px;
+      background: #3b82f6;
+      color: #fff;
+      text-decoration: none;
+      font-weight: bold;
+      border-radius: 6px;
+      margin: 0 10px;
+      border: none;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    .btn-secondary {
+      background: #64748b;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="no-print top-bar">
+    <button onclick="window.print()" class="btn">Print Sheet</button>
+    <a href="{% url 'labels_setup' %}" class="btn btn-secondary">Back</a>
+  </div>
+
+  <div class="sheet">
+    {% for i in stickers %}
+    <div class="sticker">
+      <div class="shop-name">HAPPY SCHOOL DRESS</div>
+      
+      <div class="product-info">
+        <span>{{ sp.product.name|truncatechars:15 }}</span>
+        <span>Sz: <strong>{{ sp.size.size_value }}</strong></span>
+      </div>
+      
+      <div class="barcode-wrap">
+        {{ svg_barcode|safe }}
+      </div>
+      
+      <div class="product-info" style="margin-bottom:0;">
+        <span class="sku-text">{{ sp.sku_code }}</span>
+        <span class="price">₹{{ sp.price|default:"-" }}</span>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+</body>
+</html>

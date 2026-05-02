@@ -1,26 +1,45 @@
 /* ─── Cascading Dropdowns ───────────────────────────────────────────────────── */
 
+function updateSelect(el, options, placeholder, disabled) {
+  if (!el) return;
+  el.innerHTML = '';
+  if (placeholder) el.innerHTML += '<option value="">' + placeholder + '</option>';
+  options.forEach(opt => { el.innerHTML += '<option value="' + opt.value + '">' + opt.text + '</option>'; });
+  el.disabled = disabled;
+  
+  if (el.tomselect) {
+    el.tomselect.clearOptions();
+    el.tomselect.clear(true);
+    if (placeholder) el.tomselect.addOption({value: '', text: placeholder});
+    options.forEach(opt => el.tomselect.addOption({value: opt.value, text: opt.text}));
+    if (disabled) el.tomselect.disable();
+    else el.tomselect.enable();
+  }
+}
+
 function setupCascadingDropdowns({ schoolSel, productSel, sizeSel, stockDisplay }) {
   const school = document.getElementById(schoolSel);
   const product = document.getElementById(productSel);
   const size = sizeSel ? document.getElementById(sizeSel) : null;
   const stockEl = stockDisplay ? document.getElementById(stockDisplay) : null;
 
-  function setLoading(el) { el.innerHTML = '<option value="">Loading...</option>'; el.disabled = true; }
-  function setPlaceholder(el, text) { el.innerHTML = '<option value="">' + text + '</option>'; el.disabled = false; }
-
   if (school) {
     school.addEventListener('change', async () => {
       const id = school.value;
-      if (!id) { setPlaceholder(product, '-- Select Product --'); if (size) setPlaceholder(size, '-- Select Size --'); if (stockEl) clearStock(stockEl); return; }
-      setLoading(product);
-      if (size) setPlaceholder(size, '-- Select Size --');
+      if (!id) { 
+        updateSelect(product, [], '-- Select Product --', false);
+        if (size) updateSelect(size, [], '-- Select Size --', false);
+        if (stockEl) clearStock(stockEl);
+        return; 
+      }
+      updateSelect(product, [], 'Loading...', true);
+      if (size) updateSelect(size, [], '-- Select Size --', false);
       if (stockEl) clearStock(stockEl);
+      
       const res = await fetch('/api/products-for-school/?school_id=' + id);
       const data = await res.json();
-      product.innerHTML = '<option value="">-- Select Product --</option>';
-      data.forEach(p => { product.innerHTML += '<option value="' + p.id + '">' + p.name + '</option>'; });
-      product.disabled = false;
+      const opts = data.map(p => ({value: p.id, text: p.name}));
+      updateSelect(product, opts, '-- Select Product --', false);
     });
   }
 
@@ -28,15 +47,19 @@ function setupCascadingDropdowns({ schoolSel, productSel, sizeSel, stockDisplay 
     product.addEventListener('change', async () => {
       const schoolId = school ? school.value : '';
       const productId = product.value;
-      if (!productId || !schoolId) { if (size) setPlaceholder(size, '-- Select Size --'); if (stockEl) clearStock(stockEl); return; }
-      if (size) {
-        setLoading(size);
+      if (!productId || !schoolId) { 
+        if (size) updateSelect(size, [], '-- Select Size --', false);
         if (stockEl) clearStock(stockEl);
+        return; 
+      }
+      if (size) {
+        updateSelect(size, [], 'Loading...', true);
+        if (stockEl) clearStock(stockEl);
+        
         const res = await fetch('/api/sizes-for-school-product/?school_id=' + schoolId + '&product_id=' + productId);
         const data = await res.json();
-        size.innerHTML = '<option value="">-- Select Size --</option>';
-        data.forEach(s => { size.innerHTML += '<option value="' + s.id + '">' + s.size_value + '</option>'; });
-        size.disabled = false;
+        const opts = data.map(s => ({value: s.id, text: s.size_value}));
+        updateSelect(size, opts, '-- Select Size --', false);
       }
     });
   }
@@ -91,26 +114,22 @@ function setupExchangeDropdowns() {
 
   async function loadSizes(target) {
     if (!school.value || !product.value) return;
-    target.innerHTML = '<option value="">Loading...</option>';
-    target.disabled = true;
+    updateSelect(target, [], 'Loading...', true);
     const res = await fetch('/api/sizes-for-school-product/?school_id=' + school.value + '&product_id=' + product.value);
     const sizes = await res.json();
-    target.innerHTML = '<option value="">-- Select Size --</option>';
-    sizes.forEach(s => { target.innerHTML += '<option value="' + s.id + '">' + s.size_value + '</option>'; });
-    target.disabled = false;
+    const opts = sizes.map(s => ({value: s.id, text: s.size_value}));
+    updateSelect(target, opts, '-- Select Size --', false);
   }
 
   if (school && product) {
     school.addEventListener('change', async () => {
-      product.innerHTML = '<option value="">Loading...</option>';
-      product.disabled = true;
+      updateSelect(product, [], 'Loading...', true);
       const res = await fetch('/api/products-for-school/?school_id=' + school.value);
       const products = await res.json();
-      product.innerHTML = '<option value="">-- Select Product --</option>';
-      products.forEach(p => { product.innerHTML += '<option value="' + p.id + '">' + p.name + '</option>'; });
-      product.disabled = false;
-      if (oldSize) oldSize.innerHTML = '<option value="">-- Select Size --</option>';
-      if (newSize) newSize.innerHTML = '<option value="">-- Select Size --</option>';
+      const opts = products.map(p => ({value: p.id, text: p.name}));
+      updateSelect(product, opts, '-- Select Product --', false);
+      if (oldSize) updateSelect(oldSize, [], '-- Select Size --', false);
+      if (newSize) updateSelect(newSize, [], '-- Select Size --', false);
     });
     product.addEventListener('change', () => {
       if (oldSize) loadSizes(oldSize);

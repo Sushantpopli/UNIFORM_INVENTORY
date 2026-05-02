@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Bill {{ bill.bill_number }}</title>
+  <style>
+    body {
+      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      font-size: 14px;
+      margin: 0;
+      padding: 20px;
+      color: #000;
+      background: #fff;
+    }
+    .receipt {
+      max-width: 80mm; /* Standard thermal printer width */
+      margin: 0 auto;
+      padding-bottom: 30px;
+    }
+    @media print {
+      body { padding: 0; }
+      .no-print { display: none !important; }
+    }
+    .text-center { text-align: center; }
+    .text-right { text-align: right; }
+    h1 { font-size: 1.2rem; margin: 0 0 5px 0; font-weight: 800; }
+    .shop-details { font-size: 0.85rem; margin-bottom: 15px; }
+    .divider { border-top: 1px dashed #000; margin: 10px 0; }
+    .bill-info { font-size: 0.85rem; margin-bottom: 15px; display: flex; justify-content: space-between; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    th { text-align: left; padding-bottom: 5px; border-bottom: 1px solid #000; }
+    td { padding: 5px 0; vertical-align: top; }
+    .item-name { font-weight: bold; }
+    .item-meta { font-size: 0.75rem; color: #555; }
+    .totals { margin-top: 15px; font-size: 0.9rem; }
+    .totals-row { display: flex; justify-content: space-between; padding: 3px 0; }
+    .grand-total { font-weight: 800; font-size: 1.1rem; border-top: 1px solid #000; padding-top: 5px; margin-top: 5px; }
+    .footer { text-align: center; font-size: 0.8rem; margin-top: 20px; }
+    
+    .btn-print {
+      display: block; width: 100%; padding: 12px; background: #3b82f6; 
+      color: #fff; text-align: center; text-decoration: none; font-weight: bold;
+      border-radius: 6px; margin-bottom: 20px; cursor: pointer; border: none;
+    }
+    .btn-back {
+      display: block; width: 100%; padding: 12px; background: #f1f5f9; 
+      color: #334155; text-align: center; text-decoration: none; font-weight: bold;
+      border-radius: 6px; margin-bottom: 20px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="receipt">
+    <button class="no-print btn-print" onclick="window.print()">Print Bill</button>
+    <a href="{% url 'bill_create' %}" class="no-print btn-back">Back to Billing</a>
+
+    <div class="text-center">
+      <h1>HAPPY SCHOOL DRESS</h1>
+      <div class="shop-details">
+        Bajaria Chowk, Hansi<br>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="bill-info">
+      <div>
+        <strong>Bill No:</strong> {{ bill.bill_number }}<br>
+        <strong>Date:</strong> {{ bill.created_at|date:"d/m/Y H:i" }}<br>
+        <strong>School:</strong> {{ bill.school.name }}
+      </div>
+    </div>
+    
+    {% if bill.customer_name or bill.customer_phone %}
+    <div class="bill-info" style="margin-top:-5px">
+      <div>
+        <strong>Customer:</strong> {{ bill.customer_name|default:"-" }}<br>
+        <strong>Phone:</strong> {{ bill.customer_phone|default:"-" }}
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="divider"></div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Item</th>
+          <th class="text-center">Qty</th>
+          <th class="text-right">Price</th>
+          <th class="text-right">Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in bill.items.all %}
+        <tr>
+          <td>
+            <div class="item-name">{{ item.product_name }}</div>
+            <div class="item-meta">Size: {{ item.size_value }}</div>
+          </td>
+          <td class="text-center">{{ item.quantity }}</td>
+          <td class="text-right">{{ item.unit_price }}</td>
+          <td class="text-right">{{ item.line_total }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <div class="totals">
+      <div class="totals-row">
+        <span>Total Items:</span>
+        <span>{{ bill.items.count }}</span>
+      </div>
+      <div class="totals-row">
+        <span>Payment Mode:</span>
+        <span>{{ bill.get_payment_mode_display }}</span>
+      </div>
+      <div class="totals-row grand-total">
+        <span>Grand Total:</span>
+        <span>₹ {{ bill.total_amount }}</span>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="footer">
+      Thank you for shopping with us!<br>
+      Visit again.
+    </div>
+  </div>
+
+  <script>
+    // Auto-trigger print dialog when loaded
+    window.onload = function() {
+      setTimeout(function() { window.print(); }, 500);
+    };
+  </script>
+</body>
+</html>

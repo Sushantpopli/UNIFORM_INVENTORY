@@ -8,21 +8,21 @@
 <form method="GET" class="filter-bar">
   <div class="form-group">
     <label>School</label>
-    <select name="school" onchange="this.form.submit()">
+    <select class="searchable" name="school" onchange="this.form.submit()">
       <option value="">All Schools</option>
-      {% for s in schools %}<option value="{{ s.id }}" {% if selected_school == s.id|stringformat:"s" %}selected{% endif %}>{{ s.name }}</option>{% endfor %}
+      {% for s in schools %}<option value="{{ s.id }}" {% if selected_school == s.id|stringformat:"s" %}selected{% endif %}>{{ s.code }} - {{ s.name }}</option>{% endfor %}
     </select>
   </div>
   <div class="form-group">
     <label>Product</label>
-    <select name="product" onchange="this.form.submit()">
+    <select class="searchable" name="product" onchange="this.form.submit()">
       <option value="">All Products</option>
       {% for p in products %}<option value="{{ p.id }}" {% if selected_product == p.id|stringformat:"s" %}selected{% endif %}>{{ p.name }}</option>{% endfor %}
     </select>
   </div>
   <div class="form-group">
     <label>Type</label>
-    <select name="type" onchange="this.form.submit()">
+    <select class="searchable" name="type" onchange="this.form.submit()">
       <option value="">All Types</option>
       <option value="RESTOCK" {% if selected_type == 'RESTOCK' %}selected{% endif %}>Stock Added</option>
       <option value="SALE" {% if selected_type == 'SALE' %}selected{% endif %}>Sale</option>
@@ -33,7 +33,7 @@
   </div>
   <div class="form-group">
     <label>Time</label>
-    <select name="range" onchange="this.form.submit()">
+    <select class="searchable" name="range" onchange="this.form.submit()">
       <option value="">All Time</option>
       <option value="today" {% if selected_range == 'today' %}selected{% endif %}>Today</option>
       <option value="week" {% if selected_range == 'week' %}selected{% endif %}>Last 7 Days</option>

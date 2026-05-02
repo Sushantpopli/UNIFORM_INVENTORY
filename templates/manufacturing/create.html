@@ -11,22 +11,22 @@
     <div class="form-grid">
       <div class="form-group">
         <label for="school">School</label>
-        <select name="school" id="school" required>
+        <select class="searchable" name="school" id="school" required>
           <option value="">— Select School —</option>
           {% for s in schools %}
-          <option value="{{ s.id }}">{{ s.name }}</option>
+          <option value="{{ s.id }}">{{ s.code }} - {{ s.name }}</option>
           {% endfor %}
         </select>
       </div>
       <div class="form-group">
         <label for="product">Product</label>
-        <select name="product" id="product" disabled required>
+        <select class="searchable" name="product" id="product" disabled required>
           <option value="">— Select Product —</option>
         </select>
       </div>
       <div class="form-group">
         <label for="size">Size</label>
-        <select name="size" id="size" disabled required>
+        <select class="searchable" name="size" id="size" disabled required>
           <option value="">— Select Size —</option>
         </select>
       </div>

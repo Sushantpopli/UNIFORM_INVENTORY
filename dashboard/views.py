@@ -10,7 +10,9 @@ from datetime import timedelta
 from schools.models import School, SchoolProduct
 from products.models import Product
 from sizes.models import Size
-from transactions.models import StockTransaction, ManufacturingOrder
+from transactions.models import StockTransaction, ManufacturingOrder, Bill, BillItem
+import barcode
+from barcode.writer import SVGWriter
 
 
 # ─── Helper ────────────────────────────────────────────────────────────────────
@@ -76,6 +78,27 @@ def api_stock_check(request):
         return JsonResponse({'stock': 0, 'threshold': 5})
 
 
+def api_barcode_lookup(request):
+    code = request.GET.get('code', '').strip()
+    if not code:
+        return JsonResponse({'error': 'No code provided'}, status=400)
+    try:
+        sp = SchoolProduct.objects.select_related('school', 'product', 'size').get(sku_code__iexact=code)
+        return JsonResponse({
+            'id': sp.id,
+            'school_id': sp.school_id,
+            'school_name': sp.school.name,
+            'product_id': sp.product_id,
+            'product_name': sp.product.name,
+            'size_id': sp.size_id,
+            'size_value': sp.size.size_value,
+            'price': str(sp.price) if sp.price else '0.00',
+            'stock': sp.stock,
+        })
+    except SchoolProduct.DoesNotExist:
+        return JsonResponse({'error': 'Item not found'}, status=404)
+
+
 # ─── Dashboard ─────────────────────────────────────────────────────────────────
 
 def dashboard(request):
@@ -111,7 +134,10 @@ def inventory_browse(request):
     status = request.GET.get('status')
 
     if school_id:
-        qs = qs.filter(school_id=school_id)
+        if school_id == 'general':
+            qs = qs.filter(school__isnull=True)
+        else:
+            qs = qs.filter(school_id=school_id)
     if product_id:
         qs = qs.filter(product_id=product_id)
     if status == 'low':
@@ -121,7 +147,7 @@ def inventory_browse(request):
     elif status == 'ok':
         qs = qs.filter(stock__gt=F('low_stock_threshold'))
 
-    paginator = Paginator(qs, 30)
+    paginator = Paginator(qs, 500)
     page = request.GET.get('page', 1)
     items = paginator.get_page(page)
 
@@ -135,6 +161,27 @@ def inventory_browse(request):
         'total_count': paginator.count,
     }
     return render(request, 'inventory/browse.html', ctx)
+
+
+def inventory_update_price(request, pk):
+    if request.method == 'POST':
+        item = get_object_or_404(SchoolProduct, pk=pk)
+        price_val = request.POST.get('price', '').strip()
+        if price_val:
+            try:
+                item.price = float(price_val)
+                item.save()
+                messages.success(request, f'Price updated for {item.product.name} ({item.size.size_value}).')
+            except ValueError:
+                messages.error(request, 'Invalid price format.')
+        else:
+            item.price = None
+            item.save()
+            messages.success(request, f'Price removed for {item.product.name} ({item.size.size_value}).')
+            
+    # Redirect back to where they came from
+    referer = request.META.get('HTTP_REFERER', 'inventory_browse')
+    return redirect(referer)
 
 
 def low_stock_report(request):
@@ -400,3 +447,394 @@ def manufacturing_receive(request, pk):
         messages.success(request, f'Received {qty} units. Stock updated!')
         return redirect('manufacturing_list')
     return render(request, 'manufacturing/receive.html', {'order': order})
+
+
+# ─── Billing System ────────────────────────────────────────────────────────────
+
+def bill_create(request):
+    if request.method == 'POST':
+        school_id = request.POST.get('school')
+        customer_name = request.POST.get('customer_name', '').strip()
+        customer_phone = request.POST.get('customer_phone', '').strip()
+        payment_mode = request.POST.get('payment_mode', 'CASH')
+        
+        # Read dynamic items from POST data
+        # Expecting arrays like item_id[], qty[]
+        item_ids = request.POST.getlist('item_id[]')
+        qtys = request.POST.getlist('qty[]')
+        
+        if not school_id or not item_ids:
+            messages.error(request, 'Please select a school and add at least one item.')
+            return redirect('bill_create')
+            
+        try:
+            school = School.objects.get(id=school_id)
+        except School.DoesNotExist:
+            messages.error(request, 'Invalid school.')
+            return redirect('bill_create')
+
+        with db_transaction.atomic():
+            bill = Bill.objects.create(
+                bill_number=Bill.generate_bill_number(),
+                school=school,
+                customer_name=customer_name,
+                customer_phone=customer_phone,
+                payment_mode=payment_mode,
+                total_amount=0
+            )
+            
+            total_amount = 0
+            
+            for i in range(len(item_ids)):
+                sp_id = item_ids[i]
+                qty = _safe_int(qtys[i], minimum=1)
+                
+                try:
+                    sp = SchoolProduct.objects.get(id=sp_id, school=school)
+                except SchoolProduct.DoesNotExist:
+                    continue # Skip invalid items
+                
+                if sp.stock < qty:
+                    # In a real app we might abort, but let's allow it and go negative, or abort:
+                    # Let's abort the whole transaction for safety.
+                    messages.error(request, f'Not enough stock for {sp.product.name} ({sp.size.size_value}). Only {sp.stock} left.')
+                    db_transaction.set_rollback(True)
+                    return redirect('bill_create')
+                
+                price = sp.price or 0
+                line_total = price * qty
+                total_amount += line_total
+                
+                BillItem.objects.create(
+                    bill=bill,
+                    school_product=sp,
+                    product_name=sp.product.name,
+                    size_value=sp.size.size_value,
+                    quantity=qty,
+                    unit_price=price,
+                    line_total=line_total
+                )
+                
+                # Record transaction and deduct stock
+                _record_transaction(sp, 'BILL_SALE', qty, f'Bill #{bill.bill_number}')
+            
+            if total_amount == 0:
+                messages.error(request, 'Invalid bill (amount is 0).')
+                db_transaction.set_rollback(True)
+                return redirect('bill_create')
+                
+            bill.total_amount = total_amount
+            bill.save()
+            
+            messages.success(request, f'Bill generated successfully!')
+            return redirect('bill_print', pk=bill.pk)
+            
+    return render(request, 'billing/create.html', {
+        'schools': School.objects.all(),
+        'page_title': 'Create Bill'
+    })
+
+
+def bill_print(request, pk):
+    bill = get_object_or_404(Bill, pk=pk)
+    return render(request, 'billing/print.html', {'bill': bill})
+
+
+def bill_history(request):
+    qs = Bill.objects.prefetch_related('items').select_related('school')
+    
+    school_id = request.GET.get('school')
+    date_range = request.GET.get('range', '')
+    query = request.GET.get('q', '').strip()
+    
+    if school_id:
+        qs = qs.filter(school_id=school_id)
+    if query:
+        qs = qs.filter(Q(bill_number__icontains=query) | Q(customer_phone__icontains=query) | Q(customer_name__icontains=query))
+        
+    if date_range == 'today':
+        qs = qs.filter(created_at__date=timezone.now().date())
+    elif date_range == 'week':
+        qs = qs.filter(created_at__gte=timezone.now() - timedelta(days=7))
+    elif date_range == 'month':
+        qs = qs.filter(created_at__gte=timezone.now() - timedelta(days=30))
+        
+    paginator = Paginator(qs, 20)
+    page = request.GET.get('page', 1)
+    bills = paginator.get_page(page)
+    
+    return render(request, 'billing/history.html', {
+        'bills': bills,
+        'schools': School.objects.all(),
+        'selected_school': school_id or '',
+        'selected_range': date_range,
+        'query': query,
+        'total_count': paginator.count
+    })
+
+
+def daily_summary(request):
+    today = timezone.now().date()
+    # Get total sales for today (completed bills)
+    bills_today = Bill.objects.filter(created_at__date=today, is_void=False)
+    
+    total_revenue = bills_today.aggregate(t=Sum('total_amount'))['t'] or 0
+    total_bills = bills_today.count()
+    
+    # Items sold today via bills
+    items_sold = BillItem.objects.filter(bill__in=bills_today).values(
+        'product_name', 'size_value'
+    ).annotate(
+        total_qty=Sum('quantity'),
+        total_revenue=Sum('line_total')
+    ).order_by('-total_qty')
+    
+    # Sales by school
+    school_sales = bills_today.values('school__name').annotate(
+        total_revenue=Sum('total_amount'),
+        bill_count=models.Count('id')
+    ).order_by('-total_revenue')
+    
+    return render(request, 'dashboard/summary.html', {
+        'today': today,
+        'total_revenue': total_revenue,
+        'total_bills': total_bills,
+        'items_sold': items_sold,
+        'school_sales': school_sales
+    })
+
+
+# ─── Barcode Labels ────────────────────────────────────────────────────────────
+
+def labels_setup(request):
+    if request.method == 'POST':
+        school_id = request.POST.get('school')
+        product_id = request.POST.get('product')
+        size_id = request.POST.get('size')
+        qty = _safe_int(request.POST.get('quantity'), minimum=1)
+        
+        if not all([school_id, product_id, size_id]):
+            messages.error(request, 'Please select School, Product, and Size.')
+            return redirect('labels_setup')
+            
+        try:
+            sp = SchoolProduct.objects.get(school_id=school_id, product_id=product_id, size_id=size_id)
+            # Store in session to pass to print view
+            request.session['print_label_data'] = {
+                'sp_id': sp.id,
+                'qty': qty
+            }
+            return redirect('labels_print')
+        except SchoolProduct.DoesNotExist:
+            messages.error(request, 'Item not found.')
+            return redirect('labels_setup')
+            
+    return render(request, 'inventory/labels.html', {
+        'schools': School.objects.all(),
+        'page_title': 'Print Barcode Labels'
+    })
+
+
+def labels_print(request):
+    data = request.session.get('print_label_data')
+    if not data:
+        messages.error(request, 'No print data found.')
+        return redirect('labels_setup')
+        
+    sp = get_object_or_404(SchoolProduct, id=data['sp_id'])
+    qty = data['qty']
+    
+    # Generate SVG Barcode
+    # code128 is a very standard alphanumeric barcode
+    code128 = barcode.get('code128', sp.sku_code, writer=SVGWriter())
+    # We want a clean barcode without the text below it (we'll add our own text)
+    options = {
+        'write_text': False,
+        'module_width': 0.3,
+        'module_height': 8.0,
+        'quiet_zone': 1.0,
+    }
+    svg_bytes = code128.render(options)
+    svg_str = svg_bytes.decode('utf-8')
+    
+    # Clean up the SVG to fit our box better if needed, but injecting directly is fine.
+    # The SVG generated has xml headers which we can strip out for inline HTML,
+    # but modern browsers usually handle raw injected SVG strings okay if we skip the header.
+    svg_str = svg_str[svg_str.find('<svg'):]
+    
+    # Create list of items to loop over
+    stickers = range(qty)
+    
+    return render(request, 'inventory/labels_print.html', {
+        'sp': sp,
+        'stickers': stickers,
+        'svg_barcode': svg_str
+    })
+
+
+# ─── Setup / Master Data ───────────────────────────────────────────────────────
+
+def setup_home(request):
+    """Master data management hub."""
+    schools = School.objects.all().order_by('name')
+    products = Product.objects.all().order_by('name')
+    sizes = Size.objects.select_related('product').order_by('product__name', 'size_value')
+    return render(request, 'setup/home.html', {
+        'schools': schools,
+        'products': products,
+        'sizes': sizes,
+        'school_count': schools.count(),
+        'product_count': products.count(),
+        'sku_count': SchoolProduct.objects.count(),
+    })
+
+
+def setup_school_add(request):
+    if request.method == 'POST':
+        name = request.POST.get('name', '').strip()
+        code = request.POST.get('code', '').strip().upper()
+        if not name or not code:
+            messages.error(request, 'School name and code are required.')
+            return redirect('setup_home')
+        if School.objects.filter(name__iexact=name).exists():
+            messages.error(request, f'School "{name}" already exists.')
+            return redirect('setup_home')
+        School.objects.create(name=name, code=code)
+        messages.success(request, f'School "{name}" added successfully.')
+    return redirect('setup_home')
+
+
+def setup_school_delete(request, pk):
+    if request.method == 'POST':
+        school = School.objects.filter(pk=pk).first()
+        if school:
+            name = school.name
+            school.delete()
+            messages.success(request, f'School "{name}" deleted.')
+        else:
+            messages.warning(request, 'School was already deleted.')
+    return redirect('setup_home')
+
+
+def setup_product_add(request):
+    if request.method == 'POST':
+        name = request.POST.get('name', '').strip()
+        if not name:
+            messages.error(request, 'Product name is required.')
+            return redirect('setup_home')
+        if Product.objects.filter(name__iexact=name).exists():
+            messages.error(request, f'Product "{name}" already exists.')
+            return redirect('setup_home')
+        Product.objects.create(name=name)
+        messages.success(request, f'Product "{name}" added.')
+    return redirect('setup_home')
+
+
+def setup_product_delete(request, pk):
+    if request.method == 'POST':
+        product = Product.objects.filter(pk=pk).first()
+        if product:
+            name = product.name
+            product.delete()
+            messages.success(request, f'Product "{name}" deleted.')
+        else:
+            messages.warning(request, 'Product was already deleted.')
+    return redirect('setup_home')
+
+
+def setup_size_add(request):
+    if request.method == 'POST':
+        product_id = request.POST.get('product_id')
+        size_value = request.POST.get('size_value', '').strip()
+        if not product_id or not size_value:
+            messages.error(request, 'Product and size value are required.')
+            return redirect('setup_home')
+        product = get_object_or_404(Product, pk=product_id)
+        if Size.objects.filter(product=product, size_value__iexact=size_value).exists():
+            messages.error(request, f'Size "{size_value}" already exists for {product.name}.')
+            return redirect('setup_home')
+        Size.objects.create(product=product, size_value=size_value)
+        messages.success(request, f'Size "{size_value}" added for {product.name}.')
+    return redirect('setup_home')
+
+
+def setup_size_delete(request, pk):
+    if request.method == 'POST':
+        size = Size.objects.filter(pk=pk).first()
+        if size:
+            label = str(size)
+            size.delete()
+            messages.success(request, f'Size "{label}" deleted.')
+        else:
+            messages.warning(request, 'Size was already deleted.')
+    return redirect('setup_home')
+
+
+def setup_link_add(request):
+    """Link a school + product + size together with a price."""
+    if request.method == 'POST':
+        school_id   = request.POST.get('school_id')
+        product_id  = request.POST.get('product_id')
+        size_id     = request.POST.get('size_id')
+        price       = request.POST.get('price', '').strip()
+
+        if not all([school_id, product_id, size_id]):
+            messages.error(request, 'School, product, and size are all required.')
+            return redirect('setup_home')
+
+        if school_id == 'general':
+            school = None
+            school_name = 'General Items'
+        else:
+            school = get_object_or_404(School, pk=school_id)
+            school_name = school.name
+            
+        product = get_object_or_404(Product, pk=product_id)
+        size    = get_object_or_404(Size, pk=size_id)
+
+        if SchoolProduct.objects.filter(school=school, product=product, size=size).exists():
+            messages.error(request, f'This combination already exists.')
+            return redirect('setup_home')
+
+        sp = SchoolProduct.objects.create(
+            school=school, product=product, size=size,
+            price=price if price else None,
+            stock=0,
+        )
+        messages.success(request, f'Added: {school_name} → {product.name} ({size.size_value}). SKU: {sp.sku_code}')
+    return redirect('setup_home')
+
+
+def setup_link_bulk(request):
+    """Bulk-link: add a product+all-its-sizes to a school at once."""
+    if request.method == 'POST':
+        school_id  = request.POST.get('school_id')
+        product_id = request.POST.get('product_id')
+        price      = request.POST.get('price', '').strip()
+
+        if school_id == 'general':
+            school = None
+            school_name = 'General Items'
+        else:
+            school  = get_object_or_404(School, pk=school_id)
+            school_name = school.name
+            
+        product = get_object_or_404(Product, pk=product_id)
+        sizes   = Size.objects.filter(product=product)
+
+        if not sizes.exists():
+            messages.error(request, f'No sizes defined for {product.name}. Add sizes first.')
+            return redirect('setup_home')
+
+        created = 0
+        for size in sizes:
+            obj, made = SchoolProduct.objects.get_or_create(
+                school=school, product=product, size=size,
+                defaults={'price': price if price else None, 'stock': 0}
+            )
+            if made:
+                created += 1
+
+        messages.success(request, f'{created} size(s) linked for {school_name} → {product.name}.')
+    return redirect('setup_home')
+
