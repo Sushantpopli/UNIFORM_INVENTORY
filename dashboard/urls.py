@@ -23,6 +23,7 @@ urlpatterns = [
 
     # API
     path('api/barcode-lookup/', views.api_barcode_lookup, name='api_barcode_lookup'),
+    path('api/item-lookup/', views.api_item_lookup, name='api_item_lookup'),
 
     # Labels
     path('labels/', views.labels_setup, name='labels_setup'),

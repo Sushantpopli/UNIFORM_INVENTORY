@@ -3,6 +3,7 @@
 {% block nav_bills %}active{% endblock %}
 {% block page_title %}Bill History{% endblock %}
 {% block page_sub %}All generated bills and receipts{% endblock %}
+{% block topbar_actions %}<a href="{% url 'bill_create' %}" class="btn btn-primary btn-sm">+ New Bill</a>{% endblock %}
 
 {% block content %}
 <form method="GET" class="filter-bar">
@@ -32,6 +33,9 @@
   </div>
 </form>
 
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+  <span class="record-count">{{ total_count }} Bill{{ total_count|pluralize }}</span>
+</div>
 <div class="card" style="padding:0;">
   <div class="table-wrap">
     <table>
@@ -49,7 +53,7 @@
       <tbody>
         {% for bill in bills %}
         <tr{% if bill.is_void %} class="void-row"{% endif %}>
-          <td><strong>{{ bill.bill_number }}</strong></td>
+          <td><span class="bill-number">{{ bill.bill_number }}</span></td>
           <td class="text-muted">{{ bill.created_at|date:"d M Y, H:i" }}</td>
           <td>{{ bill.school.name }}</td>
           <td>

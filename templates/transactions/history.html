@@ -3,6 +3,7 @@
 {% block nav_history %}active{% endblock %}
 {% block page_title %}Transaction History{% endblock %}
 {% block page_sub %}All stock changes recorded{% endblock %}
+{% block topbar_actions %}<a href="{% url 'stock_in' %}" class="btn btn-primary btn-sm">+ Add Stock</a>{% endblock %}
 
 {% block content %}
 <form method="GET" class="filter-bar">
@@ -46,6 +47,9 @@
   </div>
 </form>
 
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+  <span class="record-count">{{ total_count }} Record{{ total_count|pluralize }}</span>
+</div>
 <div class="card" style="padding:0;">
   <div class="table-wrap">
     <table>
@@ -56,7 +60,7 @@
         {% for tx in txs %}
         <tr{% if tx.is_void %} class="void-row"{% endif %}>
           <td class="text-muted">{{ tx.created_at|date:"d M Y, H:i" }}</td>
-          <td><strong>{{ tx.school_product.school.name }}</strong></td>
+          <td><strong>{{ tx.school_product.school.name|default:"General Item" }}</strong></td>
           <td>{{ tx.school_product.product.name }}</td>
           <td><strong>{{ tx.school_product.size.size_value }}</strong></td>
           <td><span class="tx-chip tx-{{ tx.transaction_type }}">{{ tx.get_transaction_type_display }}</span></td>

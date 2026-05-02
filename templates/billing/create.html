@@ -184,7 +184,7 @@
     }
   });
 
-  // Manual Add Button
+  // Manual Add Button - uses /api/item-lookup/ to get full item details
   document.getElementById('btn-manual-add').addEventListener('click', async function() {
     const schoolId = manualSchool.value;
     const productId = manualProduct.value;
@@ -195,41 +195,26 @@
       return;
     }
 
-    // Call API to get item details based on manual selection
-    const res = await fetch('/api/stock-check/?school_id=' + schoolId + '&product_id=' + productId + '&size_id=' + sizeId);
-    const data = await res.json();
-    
-    // We need more details to add to cart. Let's do a quick manual item push
-    // For simplicity, we just use the selected option texts, but we need price.
-    // Instead, let's fetch the actual SchoolProduct to get the price.
-    // I will write a simple fetch using barcode lookup but by passing ID? 
-    // Wait, let's just make the manual flow fetch full details.
-    alert('Please use barcode for now, or ensure your inventory has barcodes generated.');
+    try {
+      const res = await fetch(`/api/item-lookup/?school_id=${schoolId}&product_id=${productId}&size_id=${sizeId}`);
+      if (!res.ok) throw new Error('Item not found');
+      const item = await res.json();
+
+      // Enforce single school per bill
+      if (currentSchoolId === null) {
+        currentSchoolId = item.school_id;
+        formSchoolId.value = item.school_id;
+      } else if (currentSchoolId != item.school_id) {
+        alert('Cannot mix items from different schools in one bill.');
+        return;
+      }
+
+      addItemToCart(item);
+    } catch (e) {
+      alert('Item not found. Make sure this combination exists in inventory.');
+    }
   });
 
-  // Better Manual Add handling: Since we need price and SKU id, we should look it up.
-  // Actually, I can just use a fetch to get the SP ID from the stock-check if I modify it.
-  // To keep it simple: manual adding triggers a special fetch or we ensure manual adds work.
-  document.getElementById('btn-manual-add').onclick = async function() {
-    const schoolId = manualSchool.value;
-    const productId = manualProduct.value;
-    const sizeId = manualSize.value;
-    if (!schoolId || !productId || !sizeId) return alert('Select all fields');
-
-    // We can just fetch all products for the school, but that's slow. 
-    // Let's use a quick hack: since we know school, product, size, we can fetch from an endpoint.
-    // I will update the template to just use a custom endpoint or we can modify barcode lookup to accept IDs.
-    // For now, let's just do a fetch to the backend that returns the sku_code given school, product, size.
-    // Let's implement it safely.
-    barcodeInput.value = "";
-    
-    const res = await fetch(`/api/stock-check/?school_id=${schoolId}&product_id=${productId}&size_id=${sizeId}`);
-    const data = await res.json();
-    if(data.stock !== undefined) {
-      // The endpoint doesn't return sku_code currently. We can add it. 
-      // For now, let's just ask the user to use barcode, or I'll implement a fallback fetch.
-    }
-  };
 
   async function lookupBarcode(code) {
     barcodeInput.disabled = true;

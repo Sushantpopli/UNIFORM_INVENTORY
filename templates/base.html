@@ -113,13 +113,21 @@
 
 <main class="main">
   <header class="topbar">
-    <div>
-      <div class="topbar-title">{% block page_title %}Home{% endblock %}</div>
-      {% block topbar_sub %}<div class="topbar-sub">{% block page_sub %}{% endblock %}</div>{% endblock %}
+    <div style="display:flex; align-items:center; gap:0; flex:1;">
+      <div style="border-right:1px solid var(--border); padding-right:20px; margin-right:20px; display:flex; flex-direction:column; gap:3px;">
+        <div class="topbar-title" style="display:flex; align-items:center; gap:9px;">
+          <span style="width:3px; height:18px; background:linear-gradient(180deg,var(--gold),rgba(245,158,11,0.3)); border-radius:99px; display:inline-block; flex-shrink:0;"></span>
+          {% block page_title %}Home{% endblock %}
+        </div>
+        {% block topbar_sub %}<div class="topbar-sub" style="padding-left:12px;">{% block page_sub %}{% endblock %}</div>{% endblock %}
+      </div>
     </div>
     <div class="topbar-actions">
       {% block topbar_actions %}{% endblock %}
-      <div id="topbar-clock" style="font-size:0.72rem; color:var(--text-muted); font-weight:600; padding: 6px 14px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; white-space:nowrap;"></div>
+      <div id="topbar-clock" style="display:flex; align-items:center; gap:8px; font-size:0.72rem; color:var(--text-dim); font-weight:600; padding:7px 14px; background:linear-gradient(135deg,var(--surface-2),var(--surface-3)); border:1px solid var(--border); border-radius:9px; white-space:nowrap; letter-spacing:0.3px;">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width:13px;height:13px;color:var(--gold);flex-shrink:0;"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        <span id="topbar-clock-text">—</span>
+      </div>
     </div>
   </header>
 
@@ -154,7 +162,7 @@
 
   // Live clock
   function updateClock() {
-    const el = document.getElementById('topbar-clock');
+    const el = document.getElementById('topbar-clock-text');
     if (!el) return;
     const now = new Date();
     const opts = { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true };

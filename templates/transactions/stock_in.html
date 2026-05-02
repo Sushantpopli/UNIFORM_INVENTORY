@@ -131,24 +131,24 @@
         // Auto-select School
         const schoolSel = document.getElementById('school');
         schoolSel.value = item.school_id;
+        if (schoolSel.tomselect) schoolSel.tomselect.setValue(String(item.school_id), true);
         
         // Load Products
         const productSel = document.getElementById('product');
         const pRes = await fetch('/api/products-for-school/?school_id=' + item.school_id);
         const pData = await pRes.json();
-        productSel.innerHTML = '<option value="">-- Select Product --</option>';
-        pData.forEach(p => { productSel.innerHTML += '<option value="' + p.id + '">' + p.name + '</option>'; });
-        productSel.disabled = false;
+        updateSelect(productSel, pData.map(p => ({value: p.id, text: p.name})), '-- Select Product --', false);
+        if (productSel.tomselect) productSel.tomselect.setValue(String(item.product_id), true);
         productSel.value = item.product_id;
         
         // Load Sizes
         const sizeSel = document.getElementById('size');
         const sRes = await fetch('/api/sizes-for-school-product/?school_id=' + item.school_id + '&product_id=' + item.product_id);
         const sData = await sRes.json();
-        sizeSel.innerHTML = '<option value="">-- Select Size --</option>';
-        sData.forEach(s => { sizeSel.innerHTML += '<option value="' + s.id + '">' + s.size_value + '</option>'; });
-        sizeSel.disabled = false;
+        updateSelect(sizeSel, sData.map(s => ({value: s.id, text: s.size_value})), '-- Select Size --', false);
+        if (sizeSel.tomselect) sizeSel.tomselect.setValue(String(item.size_id), true);
         sizeSel.value = item.size_id;
+
         
         // Show the manual area automatically so they see what got selected
         scannerStatus.innerHTML = "Found ✓";

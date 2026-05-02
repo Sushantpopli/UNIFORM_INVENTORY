@@ -1,5 +1,5 @@
 from django.db import transaction as db_transaction
-from django.db.models import Sum, F, Q
+from django.db.models import Sum, F, Q, Count
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.core.paginator import Paginator
@@ -86,8 +86,39 @@ def api_barcode_lookup(request):
         sp = SchoolProduct.objects.select_related('school', 'product', 'size').get(sku_code__iexact=code)
         return JsonResponse({
             'id': sp.id,
-            'school_id': sp.school_id,
-            'school_name': sp.school.name,
+            'school_id': sp.school_id or 'general',
+            'school_name': sp.school.name if sp.school else 'General Item',
+            'product_id': sp.product_id,
+            'product_name': sp.product.name,
+            'size_id': sp.size_id,
+            'size_value': sp.size.size_value,
+            'price': str(sp.price) if sp.price else '0.00',
+            'stock': sp.stock,
+        })
+    except SchoolProduct.DoesNotExist:
+        return JsonResponse({'error': 'Item not found'}, status=404)
+
+
+def api_item_lookup(request):
+    """Fetch full item details by school_id, product_id, size_id for manual billing."""
+    school_id = request.GET.get('school_id')
+    product_id = request.GET.get('product_id')
+    size_id = request.GET.get('size_id')
+    if not all([school_id, product_id, size_id]):
+        return JsonResponse({'error': 'Missing parameters'}, status=400)
+    try:
+        if school_id == 'general':
+            sp = SchoolProduct.objects.select_related('product', 'size').get(
+                school__isnull=True, product_id=product_id, size_id=size_id
+            )
+        else:
+            sp = SchoolProduct.objects.select_related('school', 'product', 'size').get(
+                school_id=school_id, product_id=product_id, size_id=size_id
+            )
+        return JsonResponse({
+            'id': sp.id,
+            'school_id': sp.school_id or 'general',
+            'school_name': sp.school.name if sp.school else 'General Item',
             'product_id': sp.product_id,
             'product_name': sp.product.name,
             'size_id': sp.size_id,
@@ -490,9 +521,13 @@ def bill_create(request):
                 qty = _safe_int(qtys[i], minimum=1)
                 
                 try:
-                    sp = SchoolProduct.objects.get(id=sp_id, school=school)
+                    # SchoolProduct for this bill. General items have school=None.
+                    sp = SchoolProduct.objects.get(id=sp_id)
+                    # Validate it belongs to the right school or is a General Item
+                    if sp.school is not None and sp.school != school:
+                        continue  # Skip items from another school
                 except SchoolProduct.DoesNotExist:
-                    continue # Skip invalid items
+                    continue  # Skip invalid item IDs
                 
                 if sp.stock < qty:
                     # In a real app we might abort, but let's allow it and go negative, or abort:
@@ -592,7 +627,7 @@ def daily_summary(request):
     # Sales by school
     school_sales = bills_today.values('school__name').annotate(
         total_revenue=Sum('total_amount'),
-        bill_count=models.Count('id')
+        bill_count=Count('id')
     ).order_by('-total_revenue')
     
     return render(request, 'dashboard/summary.html', {

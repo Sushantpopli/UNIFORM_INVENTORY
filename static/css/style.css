@@ -105,14 +105,25 @@ button { cursor: pointer; font-family: inherit; }
 /* ─── Main ──────────────────────────────────────────────────────────────────── */
 .main { margin-left: var(--sidebar-w); flex: 1; display: flex; flex-direction: column; min-height: 100vh; }
 .topbar {
-  padding: 18px 36px; border-bottom: 1px solid var(--border);
-  display: flex; align-items: center; justify-content: space-between;
-  background: rgba(6,13,30,0.82); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+  padding: 0 36px;
+  height: 66px;
+  border-bottom: 1px solid var(--border);
+  background: linear-gradient(180deg, rgba(10,19,40,0.98) 0%, rgba(6,13,30,0.9) 100%);
+  backdrop-filter: blur(28px); -webkit-backdrop-filter: blur(28px);
   position: sticky; top: 0; z-index: 50;
+  display: flex; align-items: center; justify-content: space-between;
+  box-shadow: 0 1px 0 rgba(245,158,11,0.1), 0 6px 28px rgba(0,0,0,0.35);
+  position: relative;
 }
-.topbar-title { font-size: 1.15rem; font-weight: 800; letter-spacing: -0.3px; }
-.topbar-sub { font-size: 0.78rem; color: var(--text-muted); margin-top: 2px; }
-.topbar-actions { display: flex; gap: 10px; }
+.topbar::before {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  background: linear-gradient(90deg, var(--gold), rgba(245,158,11,0.4), transparent 70%);
+  pointer-events: none;
+}
+.topbar-title { font-size: 1.1rem; font-weight: 800; letter-spacing: -0.4px; color: var(--text); }
+.topbar-sub { font-size: 0.73rem; color: var(--text-muted); margin-top: 1px; }
+.topbar-actions { display: flex; gap: 10px; align-items: center; }
 .content { padding: 32px 36px; flex: 1; }
 
 /* ─── Cards ─────────────────────────────────────────────────────────────────── */
@@ -529,3 +540,106 @@ textarea { resize: vertical; min-height: 80px; }
   .form-grid { grid-template-columns: 1fr; }
   .stats-grid { grid-template-columns: repeat(2, 1fr); }
 }
+
+/* ─── Premium Polish ─────────────────────────────────────────────────────────── */
+
+/* Sidebar active item — Gold accent */
+.nav-item.active {
+  background: linear-gradient(90deg, rgba(245,158,11,0.12), rgba(245,158,11,0.04));
+  color: var(--gold);
+  font-weight: 700;
+  box-shadow: inset 3px 0 0 var(--gold);
+}
+
+/* Card hover glow */
+.card { transition: border-color 0.25s, box-shadow 0.25s; }
+.card:hover { box-shadow: 0 4px 24px rgba(0,0,0,0.25); }
+
+/* Stat card shimmer border on hover */
+.stat-gold:hover  { border-color: rgba(245,158,11,0.3); box-shadow: 0 8px 32px rgba(245,158,11,0.08); }
+.stat-emerald:hover { border-color: rgba(16,185,129,0.3); box-shadow: 0 8px 32px rgba(16,185,129,0.08); }
+.stat-red:hover  { border-color: rgba(239,68,68,0.3); box-shadow: 0 8px 32px rgba(239,68,68,0.08); }
+.stat-blue:hover { border-color: rgba(59,130,246,0.3); box-shadow: 0 8px 32px rgba(59,130,246,0.08); }
+
+/* Button active/press state */
+.btn:active { transform: scale(0.97); }
+.btn-primary:active { box-shadow: 0 2px 8px rgba(245,158,11,0.2); }
+
+/* Input with better focus ring */
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px rgba(245,158,11,0.12), 0 2px 8px rgba(0,0,0,0.15);
+  background: var(--surface-2);
+}
+
+/* Table row — tighter and cleaner */
+tbody tr:hover { background: rgba(255,255,255,0.025); }
+tbody tr { transition: background 0.12s; }
+
+/* Filter bar — more visual weight */
+.filter-bar {
+  border: 1px solid var(--border);
+  background: linear-gradient(135deg, var(--surface), var(--surface-2));
+}
+
+/* Record count pill */
+.record-count {
+  display: inline-flex; align-items: center;
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: 99px; padding: 4px 12px;
+  font-size: 0.72rem; font-weight: 700;
+  color: var(--text-muted); letter-spacing: 0.3px;
+}
+
+/* Page header rule */
+.topbar { border-bottom: 1px solid var(--border); }
+
+/* Quick action active state */
+.quick-btn { cursor: pointer; }
+.quick-btn:active { transform: scale(0.97); }
+
+/* Section divider */
+.section-divider {
+  height: 1px; background: linear-gradient(90deg, var(--border), transparent);
+  margin: 24px 0; border: none;
+}
+
+/* Premium bill number badge */
+.bill-number {
+  font-family: 'Courier New', monospace;
+  font-size: 0.82rem; font-weight: 800;
+  color: var(--gold); letter-spacing: 0.5px;
+}
+
+/* Topbar glass refinement */
+.topbar {
+  background: linear-gradient(180deg, rgba(6,13,30,0.92) 0%, rgba(6,13,30,0.75) 100%);
+  backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+}
+
+/* Sidebar glass refinement */
+.sidebar {
+  background: linear-gradient(180deg, #091629 0%, #050e1d 100%);
+}
+
+/* Form labels — uppercase tracking */
+label { letter-spacing: 0.8px; }
+
+/* Panel title bold separator */
+.panel-title {
+  letter-spacing: -0.2px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 14px;
+  margin-bottom: 18px;
+}
+
+/* Animated badge pulse for low stock in sidebar */
+@keyframes pulse-red {
+  0%,100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.5); }
+  50%      { box-shadow: 0 0 0 5px rgba(239,68,68,0); }
+}
+.badge { animation: pulse-red 2s infinite; }
+
+/* Table: sticky header */
+thead th { position: sticky; top: 0; background: var(--surface); z-index: 1; }
