@@ -1,6 +1,23 @@
 # 👕 Uniform Inventory Management System
 
-A professional Django-based inventory management system designed to streamline the tracking and management of school uniforms. This application allows users to manage schools, products, sizes, and specific inventory levels with ease.
+A professional Django-based inventory management system designed to streamline the tracking and management of school uniforms. This application features a premium, modern UI with dark mode, real-time stock tracking, and a fast POS billing interface.
+
+---
+
+## 📸 Preview
+
+<div align="center">
+  <h3>Modern Dashboard</h3>
+  <img src="docs/screenshots/dashboard.png" width="800" alt="Dashboard Overview">
+  
+  <p align="center">
+    <img src="docs/screenshots/billing.png" width="400" alt="POS Billing">
+    <img src="docs/screenshots/inventory.png" width="400" alt="Inventory Management">
+  </p>
+  
+  <h3>Real-time Alerts</h3>
+  <img src="docs/screenshots/low_stock.png" width="800" alt="Low Stock Alerts">
+</div>
 
 ---
 
