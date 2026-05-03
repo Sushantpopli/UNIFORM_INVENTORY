@@ -1,4 +1,4 @@
-Django>=6.0.0
+Django>=5.0,<6.0
 sqlparse
 asgiref
 whitenoise>=6.0.0
