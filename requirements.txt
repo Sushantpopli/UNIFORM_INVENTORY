@@ -3,3 +3,4 @@ sqlparse
 asgiref
 whitenoise>=6.0.0
 python-dotenv>=1.0.0
+python-barcode>=0.15.1
