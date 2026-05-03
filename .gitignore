@@ -10,7 +10,6 @@ dist/
 build/
 
 # Django
-db.sqlite3
 media/
 staticfiles/
 
