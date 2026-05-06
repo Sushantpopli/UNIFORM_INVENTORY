@@ -10,7 +10,7 @@
     <div style="font-size:1rem;font-weight:800;margin-bottom:12px;">Entry Details</div>
     <table style="font-size:0.88rem;">
       <tr><td class="text-muted" style="padding:6px 20px 6px 0">Date</td><td><strong>{{ tx.created_at|date:"d M Y, H:i" }}</strong></td></tr>
-      <tr><td class="text-muted" style="padding:6px 20px 6px 0">School</td><td><strong>{{ tx.school_product.school.name }}</strong></td></tr>
+      <tr><td class="text-muted" style="padding:6px 20px 6px 0">School</td><td><strong>{{ tx.school_product.school.name|default:"General Item" }}</strong></td></tr>
       <tr><td class="text-muted" style="padding:6px 20px 6px 0">Product</td><td><strong>{{ tx.school_product.product.name }}</strong></td></tr>
       <tr><td class="text-muted" style="padding:6px 20px 6px 0">Size</td><td><strong>{{ tx.school_product.size.size_value }}</strong></td></tr>
       <tr><td class="text-muted" style="padding:6px 20px 6px 0">Type</td><td><span class="tx-chip tx-{{ tx.transaction_type }}">{{ tx.get_transaction_type_display }}</span></td></tr>

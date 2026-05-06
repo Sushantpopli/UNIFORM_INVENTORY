@@ -36,8 +36,10 @@ urlpatterns = [
     # Billing System
     path('billing/new/', views.bill_create, name='bill_create'),
     path('billing/<int:pk>/print/', views.bill_print, name='bill_print'),
+    path('billing/<int:pk>/void/', views.bill_void, name='bill_void'),
     path('billing/history/', views.bill_history, name='bill_history'),
     path('summary/', views.daily_summary, name='daily_summary'),
+    path('analytics/', views.analytics_dashboard, name='analytics_dashboard'),
 
     # Manufacturing
     path('manufacturing/', views.manufacturing_list, name='manufacturing_list'),

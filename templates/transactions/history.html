@@ -11,6 +11,7 @@
     <label>School</label>
     <select class="searchable" name="school" onchange="this.form.submit()">
       <option value="">All Schools</option>
+      <option value="general" {% if selected_school == 'general' %}selected{% endif %}>General Items</option>
       {% for s in schools %}<option value="{{ s.id }}" {% if selected_school == s.id|stringformat:"s" %}selected{% endif %}>{{ s.code }} - {{ s.name }}</option>{% endfor %}
     </select>
   </div>

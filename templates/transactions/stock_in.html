@@ -40,6 +40,7 @@
         <label for="school">School</label>
         <select class="searchable" name="school" id="school" required>
           <option value="">-- Select School --</option>
+          <option value="general">General Items</option>
           {% for s in schools %}<option value="{{ s.id }}">{{ s.code }} - {{ s.name }}</option>{% endfor %}
         </select>
       </div>

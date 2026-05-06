@@ -1,0 +1,340 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Analytics — UniStock{% endblock %}
+{% block nav_analytics %}active{% endblock %}
+{% block page_title %}Analytics{% endblock %}
+{% block page_sub %}{{ today|date:"l, d M Y" }}{% endblock %}
+
+{% block content %}
+<style>
+.sec { margin-bottom: 32px; }
+.sec-label {
+  font-size: 0.58rem; font-weight: 800; letter-spacing: 2px;
+  text-transform: uppercase; color: rgba(255,255,255,0.22);
+  margin-bottom: 12px; display:flex; align-items:center; gap:10px;
+}
+.sec-label::after { content:''; flex:1; height:1px; background:var(--border); }
+
+/* ── 7-DAY STRIP ──────────────────────────────────────────── */
+.week-strip {
+  display: grid; grid-template-columns: repeat(7,1fr); gap: 8px;
+  margin-bottom: 32px;
+}
+.wday {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 10px; padding: 14px 8px; text-align: center;
+  text-decoration: none; display:block; cursor:pointer;
+  transition: all 0.18s; position:relative;
+}
+.wday:hover { border-color: var(--gold); background: rgba(245,158,11,0.06); }
+.wday.today-cell { border-color: rgba(245,158,11,0.4); }
+.wday.selected  {
+  border-color: var(--gold); background: rgba(245,158,11,0.12);
+  box-shadow: 0 0 0 1px var(--gold);
+}
+.wday-label { font-size:0.62rem; font-weight:800; letter-spacing:1px; text-transform:uppercase; color:var(--text-muted); margin-bottom:4px; }
+.wday-num   { font-size:1.4rem; font-weight:900; color:var(--text); line-height:1; margin-bottom:6px; }
+.wday-rev   { font-size:0.78rem; font-weight:700; }
+.wday-rev.has-rev { color:var(--gold); }
+.wday-rev.no-rev  { color:var(--text-muted); }
+.today-dot {
+  width:5px; height:5px; background:var(--gold); border-radius:50%;
+  position:absolute; top:8px; left:50%; transform:translateX(-50%);
+}
+
+/* ── SELECTED DAY BOX ─────────────────────────────────────── */
+.sel-day-box {
+  display:flex; align-items:center; gap:40px;
+  background: linear-gradient(135deg, rgba(245,158,11,0.07), rgba(245,158,11,0.02));
+  border: 1px solid rgba(245,158,11,0.25); border-left: 4px solid var(--gold);
+  border-radius: var(--radius); padding: 18px 28px; margin-bottom:32px;
+}
+.sdb-lbl { font-size:0.58rem; font-weight:800; letter-spacing:1.5px; text-transform:uppercase; color:var(--text-muted); margin-bottom:5px; }
+.sdb-val { font-size:1.8rem; font-weight:900; letter-spacing:-1px; }
+.sdb-div { width:1px; height:44px; background:var(--border); }
+.sdb-clear { margin-left:auto; font-size:0.72rem; color:var(--text-muted); border:1px solid var(--border); padding:6px 14px; border-radius:99px; text-decoration:none; }
+.sdb-clear:hover { color:var(--red); border-color:rgba(239,68,68,0.4); }
+
+/* ── YEAR PILLS ───────────────────────────────────────────── */
+.year-pills { display:flex; gap:8px; }
+.ypill {
+  padding:8px 20px; border-radius:99px; font-size:0.9rem; font-weight:800;
+  border:1px solid var(--border); background:transparent; color:var(--text-dim);
+  text-decoration:none; display:inline-block; transition:all 0.18s;
+}
+.ypill:hover  { border-color:var(--gold); color:var(--gold); }
+.ypill.active { background:var(--gold); border-color:var(--gold); color:#000; box-shadow:0 4px 18px rgba(245,158,11,0.3); }
+
+/* ── YEARLY ROW ───────────────────────────────────────────── */
+.yearly-row {
+  display:flex; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden;
+}
+.yr-cell { flex:1; padding:22px 28px; border-right:1px solid var(--border); }
+.yr-cell:last-child { border-right:none; flex:2; }
+.yr-label { font-size:0.6rem; font-weight:800; letter-spacing:1px; text-transform:uppercase; color:var(--text-muted); margin-bottom:8px; }
+.yr-val   { font-size:2.2rem; font-weight:900; letter-spacing:-1.5px; }
+.yr-gold  { color:var(--gold); }
+.yr-green { color:var(--emerald); }
+.yr-chart { height:70px; position:relative; }
+
+/* ── MONTH GRID ───────────────────────────────────────────── */
+.month-grid { display:grid; grid-template-columns:repeat(6,1fr); gap:8px; }
+.mcell {
+  background:var(--surface); border:1px solid var(--border); border-radius:10px;
+  padding:14px 10px; text-align:center; text-decoration:none; display:block;
+  cursor:pointer; transition:all 0.18s; position:relative;
+}
+.mcell:hover  { border-color:rgba(245,158,11,0.4); background:rgba(245,158,11,0.04); }
+.mcell.active { border-color:var(--gold); background:rgba(245,158,11,0.1); box-shadow:0 0 0 1px var(--gold); }
+.m-dot { width:5px; height:5px; border-radius:50%; background:var(--emerald); position:absolute; top:7px; right:7px; display:none; }
+.mcell.has-data .m-dot { display:block; }
+.m-name  { font-size:0.75rem; font-weight:800; color:var(--text); margin-bottom:8px; }
+.m-rev   { font-size:0.82rem; font-weight:700; color:var(--gold); }
+.m-bills { font-size:0.62rem; color:var(--text-muted); margin-top:3px; }
+
+/* ── MONTH DETAIL HEADER ──────────────────────────────────── */
+.mdetail {
+  display:flex; align-items:center; justify-content:space-between;
+  background:var(--surface); border:1px solid var(--border); border-left:4px solid var(--gold);
+  border-radius:var(--radius); padding:18px 24px; margin-bottom:14px;
+}
+.mdetail-title { font-size:0.95rem; font-weight:900; }
+.mdetail-sub   { font-size:0.72rem; color:var(--text-muted); margin-top:2px; }
+.mdetail-rev   { font-size:1.8rem; font-weight:900; color:var(--gold); }
+.mdetail-clear { font-size:0.72rem; color:var(--text-muted); border:1px solid var(--border); padding:6px 14px; border-radius:99px; text-decoration:none; }
+.mdetail-clear:hover { color:var(--red); border-color:rgba(239,68,68,0.4); }
+
+/* ── DAILY TABLE ──────────────────────────────────────────── */
+.daily-wrap { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; }
+.daily-wrap table { margin:0; }
+.daily-wrap thead th { background:var(--surface-2); font-size:0.6rem; letter-spacing:1px; }
+.drow { cursor:pointer; }
+.drow:hover { background:rgba(245,158,11,0.04) !important; }
+.drow.active-row { background:rgba(245,158,11,0.08) !important; }
+.d-date { font-size:0.88rem; font-weight:700; color:var(--text); }
+.d-rev  { font-weight:800; color:var(--gold); }
+.d-cnt  { color:var(--blue); font-weight:600; }
+
+/* ── DAY DETAIL ───────────────────────────────────────────── */
+.day-box {
+  display:flex; gap:40px; align-items:center;
+  background:rgba(245,158,11,0.05); border:1px solid rgba(245,158,11,0.2);
+  border-radius:var(--radius); padding:18px 28px; margin-top:12px;
+}
+.db-lbl { font-size:0.58rem; font-weight:800; letter-spacing:1.5px; text-transform:uppercase; color:var(--text-muted); margin-bottom:5px; }
+.db-val { font-size:1.6rem; font-weight:900; letter-spacing:-1px; }
+.db-div { width:1px; height:44px; background:var(--border); }
+.db-clear { margin-left:auto; font-size:0.72rem; color:var(--text-muted); border:1px solid var(--border); padding:6px 14px; border-radius:99px; text-decoration:none; }
+.db-clear:hover { color:var(--red); border-color:rgba(239,68,68,0.4); }
+
+/* ── SEASONAL (2 only) ────────────────────────────────────── */
+.season-2 { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+.scard {
+  background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+  padding:28px 28px; transition:transform 0.18s, box-shadow 0.18s; position:relative; overflow:hidden;
+}
+.scard:hover { transform:translateY(-3px); box-shadow:0 10px 32px rgba(0,0,0,0.3); }
+.scard-bg { position:absolute; right:-10px; bottom:-20px; font-size:6rem; opacity:0.06; pointer-events:none; }
+.sc-name  { font-size:0.62rem; font-weight:800; letter-spacing:1.5px; text-transform:uppercase; color:var(--text-muted); }
+.sc-range { font-size:0.78rem; color:var(--text-muted); margin:6px 0 18px; }
+.sc-rev   { font-size:2.4rem; font-weight:900; letter-spacing:-1.5px; }
+.sc-nodata { font-size:1rem; font-weight:600; color:var(--text-muted); }
+</style>
+
+<!-- ══ SECTION 1: LAST 7 DAYS ══════════════════════════════ -->
+<div class="sec">
+  <div class="sec-label">Last 7 Days — click any day to see its revenue</div>
+  <div class="week-strip">
+    {% for wd in week_days %}
+    <a href="?week_day={{ wd.date_str }}{% if sel_year %}&year={{ sel_year }}{% endif %}"
+       class="wday {% if wd.is_today %}today-cell{% endif %} {% if sel_week_day == wd.date_str %}selected{% endif %}">
+      {% if wd.is_today %}<div class="today-dot"></div>{% endif %}
+      <div class="wday-label">{{ wd.label }}</div>
+      <div class="wday-num">{{ wd.day_num }}</div>
+      <div class="wday-rev {% if wd.revenue > 0 %}has-rev{% else %}no-rev{% endif %}">
+        {% if wd.revenue > 0 %}₹{{ wd.revenue|floatformat:0 }}{% else %}—{% endif %}
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+
+  {% if week_day_obj %}
+  <div class="sel-day-box">
+    <div>
+      <div class="sdb-lbl">Selected Day</div>
+      <div class="sdb-val" style="color:var(--text); font-size:1.2rem; font-weight:800;">{{ week_day_obj|date:"l, d M Y" }}</div>
+    </div>
+    <div class="sdb-div"></div>
+    <div>
+      <div class="sdb-lbl">Revenue</div>
+      <div class="sdb-val" style="color:var(--gold);">₹{{ week_day_rev|floatformat:0 }}</div>
+    </div>
+    <div class="sdb-div"></div>
+    <div>
+      <div class="sdb-lbl">Bills</div>
+      <div class="sdb-val" style="color:var(--blue);">{{ week_day_bills }}</div>
+    </div>
+    <a href="?year={{ sel_year }}" class="sdb-clear">✕ Close</a>
+  </div>
+  {% endif %}
+</div>
+
+<!-- ══ SECTION 2: YEAR SELECTOR ════════════════════════════ -->
+<div class="sec">
+  <div class="sec-label">Year</div>
+  <div class="year-pills">
+    {% for yr in year_list %}
+    <a href="?year={{ yr }}" class="ypill {% if yr == sel_year %}active{% endif %}">{{ yr }}</a>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- ══ SECTION 3: YEARLY OVERVIEW ══════════════════════════ -->
+<div class="sec">
+  <div class="sec-label">{{ sel_year }} at a Glance</div>
+  <div class="yearly-row">
+    <div class="yr-cell">
+      <div class="yr-label">Total Revenue</div>
+      <div class="yr-val yr-gold">₹{{ yearly_revenue|floatformat:0 }}</div>
+    </div>
+    <div class="yr-cell">
+      <div class="yr-label">Total Bills</div>
+      <div class="yr-val yr-green">{{ yearly_bills }}</div>
+    </div>
+    <div class="yr-cell">
+      <div class="yr-label">Monthly Trend</div>
+      <div class="yr-chart"><canvas id="miniChart" style="width:100%;height:100%;"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ SECTION 4: MONTH GRID ═══════════════════════════════ -->
+<div class="sec">
+  <div class="sec-label">Monthly — click to see daily records</div>
+  <div class="month-grid">
+    {% for m in months_data %}
+    <a href="?year={{ sel_year }}&month={{ m.num }}"
+       class="mcell {% if sel_month == m.num|stringformat:'s' %}active{% endif %} {% if m.revenue > 0 %}has-data{% endif %}">
+      <div class="m-dot"></div>
+      <div class="m-name">{{ m.name }}</div>
+      <div class="m-rev">{% if m.revenue > 0 %}₹{{ m.revenue|floatformat:0 }}{% else %}—{% endif %}</div>
+      <div class="m-bills">{% if m.bills %}{{ m.bills }} bill{{ m.bills|pluralize }}{% endif %}</div>
+    </a>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- ══ SECTION 5: DAILY RECORDS (shown on month click) ══════ -->
+{% if sel_month %}
+<div class="sec">
+  <div class="mdetail">
+    <div>
+      <div class="mdetail-title">{{ sel_month_name }} {{ sel_year }}</div>
+      <div class="mdetail-sub">{{ monthly_bills }} bill{{ monthly_bills|pluralize }}</div>
+    </div>
+    <div class="mdetail-rev">₹{{ monthly_revenue|floatformat:0 }}</div>
+    <a href="?year={{ sel_year }}" class="mdetail-clear">✕ Back</a>
+  </div>
+
+  <div class="sec-label">Daily Records — click any row for detail</div>
+  {% if daily_rows %}
+  <div class="daily-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th style="text-align:right;">Revenue</th>
+          <th style="text-align:center;">Bills</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in daily_rows %}
+        <tr class="drow {% if sel_day == row.day|stringformat:'s' %}active-row{% endif %}"
+            onclick="location='?year={{ sel_year }}&month={{ sel_month }}&day={{ row.day }}'">
+          <td class="d-date">{{ sel_month_name|slice:":3" }} {{ row.day }}, {{ sel_year }}</td>
+          <td style="text-align:right;" class="d-rev">₹{{ row.revenue|floatformat:0 }}</td>
+          <td style="text-align:center;" class="d-cnt">{{ row.bills }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-state" style="padding:32px 0;"><p>No sales recorded in {{ sel_month_name }} {{ sel_year }}.</p></div>
+  {% endif %}
+
+  {% if sel_day %}
+  <div class="day-box">
+    <div>
+      <div class="db-lbl">Day</div>
+      <div class="db-val" style="color:var(--text); font-size:1.2rem;">{{ sel_day }} {{ sel_month_name }} {{ sel_year }}</div>
+    </div>
+    <div class="db-div"></div>
+    <div>
+      <div class="db-lbl">Revenue</div>
+      <div class="db-val" style="color:var(--gold);">₹{{ day_revenue|floatformat:0 }}</div>
+    </div>
+    <div class="db-div"></div>
+    <div>
+      <div class="db-lbl">Bills</div>
+      <div class="db-val" style="color:var(--blue);">{{ day_bills }}</div>
+    </div>
+    <a href="?year={{ sel_year }}&month={{ sel_month }}" class="db-clear">✕ Clear</a>
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
+<!-- ══ SECTION 6: SEASONAL ═════════════════════════════════ -->
+<div class="sec">
+  <div class="sec-label">Seasonal — {{ sel_year }}</div>
+  <div class="season-2">
+    {% for s in seasons %}
+    <div class="scard" style="border-top:3px solid {{ s.color }};">
+      <div class="scard-bg">{{ s.icon }}</div>
+      <div class="sc-name">{{ s.name }}</div>
+      <div class="sc-range">{{ s.months }}</div>
+      {% if s.rev > 0 %}
+      <div class="sc-rev" style="color:{{ s.color }};">₹{{ s.rev|floatformat:0 }}</div>
+      {% else %}
+      <div class="sc-nodata">No data yet</div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+(function(){
+  const labels = JSON.parse('{{ chart_labels|escapejs }}');
+  const data   = JSON.parse('{{ chart_data|escapejs }}');
+  const selM   = '{{ sel_month }}';
+  const ctx    = document.getElementById('miniChart');
+  if (!ctx) return;
+  const c = ctx.getContext('2d');
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets:[{
+        data,
+        backgroundColor: data.map((_,i) =>
+          selM && parseInt(selM)-1 === i ? '#f59e0b' : 'rgba(245,158,11,0.18)'
+        ),
+        borderRadius: 4,
+        borderSkipped: false,
+      }]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false}, tooltip:{
+        backgroundColor:'#0c1a33', borderColor:'rgba(245,158,11,0.2)', borderWidth:1,
+        callbacks:{ label: c=>' ₹'+c.parsed.y.toLocaleString('en-IN') }
+      }},
+      scales:{ x:{display:false}, y:{display:false, beginAtZero:true} }
+    }
+  });
+})();
+</script>
+{% endblock %}

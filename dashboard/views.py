@@ -1,11 +1,13 @@
 from django.db import transaction as db_transaction
 from django.db.models import Sum, F, Q, Count
+from django.db.models.functions import TruncMonth, TruncDay
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.core.paginator import Paginator
 from django.http import JsonResponse
 from django.utils import timezone
 from datetime import timedelta
+import json
 
 from schools.models import School, SchoolProduct
 from products.models import Product
@@ -28,7 +30,7 @@ def _record_transaction(school_product, tx_type, qty, note=''):
         )
         if tx_type in ('RESTOCK', 'RETURN', 'EXCHANGE_IN'):
             SchoolProduct.objects.filter(pk=school_product.pk).update(stock=F('stock') + qty)
-        elif tx_type in ('SALE', 'EXCHANGE_OUT'):
+        elif tx_type in ('SALE', 'EXCHANGE_OUT', 'BILL_SALE'):
             SchoolProduct.objects.filter(pk=school_product.pk).update(stock=F('stock') - qty)
 
 
@@ -47,9 +49,13 @@ def api_products_for_school(request):
     school_id = request.GET.get('school_id')
     if not school_id:
         return JsonResponse([], safe=False)
-    products = Product.objects.filter(
-        school_products__school_id=school_id
-    ).distinct().values('id', 'name').order_by('name')
+    
+    if school_id == 'general':
+        products = Product.objects.filter(school_products__school__isnull=True)
+    else:
+        products = Product.objects.filter(school_products__school_id=school_id)
+        
+    products = products.distinct().values('id', 'name').order_by('name')
     return JsonResponse(list(products), safe=False)
 
 
@@ -58,10 +64,13 @@ def api_sizes_for_school_product(request):
     product_id = request.GET.get('product_id')
     if not school_id or not product_id:
         return JsonResponse([], safe=False)
-    sizes = Size.objects.filter(
-        school_products__school_id=school_id,
-        school_products__product_id=product_id,
-    ).distinct().values('id', 'size_value').order_by('size_value')
+        
+    if school_id == 'general':
+        sizes = Size.objects.filter(school_products__school__isnull=True, school_products__product_id=product_id)
+    else:
+        sizes = Size.objects.filter(school_products__school_id=school_id, school_products__product_id=product_id)
+        
+    sizes = sizes.distinct().values('id', 'size_value').order_by('size_value')
     return JsonResponse(list(sizes), safe=False)
 
 
@@ -72,9 +81,19 @@ def api_stock_check(request):
     if not all([school_id, product_id, size_id]):
         return JsonResponse({'stock': 0, 'threshold': 5})
     try:
-        sp = SchoolProduct.objects.get(school_id=school_id, product_id=product_id, size_id=size_id)
-        return JsonResponse({'stock': sp.stock, 'threshold': sp.low_stock_threshold})
-    except SchoolProduct.DoesNotExist:
+        if school_id == 'general':
+            stock_data = SchoolProduct.objects.filter(
+                school__isnull=True, product_id=product_id, size_id=size_id
+            ).values_list('stock', 'low_stock_threshold').first()
+        else:
+            stock_data = SchoolProduct.objects.filter(
+                school_id=school_id, product_id=product_id, size_id=size_id
+            ).values_list('stock', 'low_stock_threshold').first()
+        
+        if stock_data:
+            return JsonResponse({'stock': stock_data[0], 'threshold': stock_data[1]})
+        return JsonResponse({'stock': 0, 'threshold': 5})
+    except Exception:
         return JsonResponse({'stock': 0, 'threshold': 5})
 
 
@@ -178,7 +197,7 @@ def inventory_browse(request):
     elif status == 'ok':
         qs = qs.filter(stock__gt=F('low_stock_threshold'))
 
-    paginator = Paginator(qs, 500)
+    paginator = Paginator(qs, 100)
     page = request.GET.get('page', 1)
     items = paginator.get_page(page)
 
@@ -196,14 +215,15 @@ def inventory_browse(request):
 
 def inventory_update_price(request, pk):
     if request.method == 'POST':
+        from decimal import Decimal, InvalidOperation
         item = get_object_or_404(SchoolProduct, pk=pk)
         price_val = request.POST.get('price', '').strip()
         if price_val:
             try:
-                item.price = float(price_val)
+                item.price = Decimal(price_val)
                 item.save()
                 messages.success(request, f'Price updated for {item.product.name} ({item.size.size_value}).')
-            except ValueError:
+            except (InvalidOperation, ValueError):
                 messages.error(request, 'Invalid price format.')
         else:
             item.price = None
@@ -241,7 +261,10 @@ def stock_in(request):
             messages.error(request, 'Please enter a valid quantity (at least 1).')
         else:
             try:
-                sp = SchoolProduct.objects.get(school_id=school_id, product_id=product_id, size_id=size_id)
+                if school_id == 'general':
+                    sp = SchoolProduct.objects.get(school__isnull=True, product_id=product_id, size_id=size_id)
+                else:
+                    sp = SchoolProduct.objects.get(school_id=school_id, product_id=product_id, size_id=size_id)
                 _record_transaction(sp, 'RESTOCK', qty, note)
                 sp.refresh_from_db()
                 messages.success(request, f'Added {qty} units. New stock: {sp.stock}')
@@ -273,7 +296,10 @@ def sale(request):
             messages.error(request, 'Please enter a valid quantity (at least 1).')
         else:
             try:
-                sp = SchoolProduct.objects.get(school_id=school_id, product_id=product_id, size_id=size_id)
+                if school_id == 'general':
+                    sp = SchoolProduct.objects.get(school__isnull=True, product_id=product_id, size_id=size_id)
+                else:
+                    sp = SchoolProduct.objects.get(school_id=school_id, product_id=product_id, size_id=size_id)
                 if sp.stock < qty:
                     messages.error(request, f'Not enough stock! Only {sp.stock} available.')
                 else:
@@ -308,7 +334,10 @@ def return_item(request):
             messages.error(request, 'Please enter a valid quantity (at least 1).')
         else:
             try:
-                sp = SchoolProduct.objects.get(school_id=school_id, product_id=product_id, size_id=size_id)
+                if school_id == 'general':
+                    sp = SchoolProduct.objects.get(school__isnull=True, product_id=product_id, size_id=size_id)
+                else:
+                    sp = SchoolProduct.objects.get(school_id=school_id, product_id=product_id, size_id=size_id)
                 _record_transaction(sp, 'RETURN', qty, note)
                 sp.refresh_from_db()
                 messages.success(request, f'Return recorded. {qty} units back in stock. New stock: {sp.stock}')
@@ -343,8 +372,12 @@ def exchange(request):
             messages.error(request, 'Please enter a valid quantity.')
         else:
             try:
-                old_sp = SchoolProduct.objects.get(school_id=school_id, product_id=product_id, size_id=old_size_id)
-                new_sp = SchoolProduct.objects.get(school_id=school_id, product_id=product_id, size_id=new_size_id)
+                if school_id == 'general':
+                    old_sp = SchoolProduct.objects.get(school__isnull=True, product_id=product_id, size_id=old_size_id)
+                    new_sp = SchoolProduct.objects.get(school__isnull=True, product_id=product_id, size_id=new_size_id)
+                else:
+                    old_sp = SchoolProduct.objects.get(school_id=school_id, product_id=product_id, size_id=old_size_id)
+                    new_sp = SchoolProduct.objects.get(school_id=school_id, product_id=product_id, size_id=new_size_id)
                 if new_sp.stock < qty:
                     messages.error(request, f'Not enough stock for new size! Only {new_sp.stock} available.')
                 else:
@@ -422,7 +455,7 @@ def void_transaction(request, pk):
             sp = tx.school_product
             if tx.transaction_type in ('RESTOCK', 'RETURN', 'EXCHANGE_IN'):
                 SchoolProduct.objects.filter(pk=sp.pk).update(stock=F('stock') - tx.quantity)
-            elif tx.transaction_type in ('SALE', 'EXCHANGE_OUT'):
+            elif tx.transaction_type in ('SALE', 'EXCHANGE_OUT', 'BILL_SALE'):
                 SchoolProduct.objects.filter(pk=sp.pk).update(stock=F('stock') + tx.quantity)
             tx.is_void = True
             tx.void_reason = reason or 'Cancelled'
@@ -451,7 +484,10 @@ def manufacturing_create(request):
         expected = request.POST.get('expected_at') or None
         notes = request.POST.get('notes', '').strip()
         try:
-            sp = SchoolProduct.objects.get(school_id=school_id, product_id=product_id, size_id=size_id)
+            if school_id == 'general':
+                sp = SchoolProduct.objects.get(school__isnull=True, product_id=product_id, size_id=size_id)
+            else:
+                sp = SchoolProduct.objects.get(school_id=school_id, product_id=product_id, size_id=size_id)
             ManufacturingOrder.objects.create(
                 school_product=sp, quantity_ordered=qty, expected_at=expected, notes=notes,
             )
@@ -484,24 +520,42 @@ def manufacturing_receive(request, pk):
 
 def bill_create(request):
     if request.method == 'POST':
-        school_id = request.POST.get('school')
+        school_id = request.POST.get('school', '').strip()
         customer_name = request.POST.get('customer_name', '').strip()
         customer_phone = request.POST.get('customer_phone', '').strip()
         payment_mode = request.POST.get('payment_mode', 'CASH')
-        
-        # Read dynamic items from POST data
-        # Expecting arrays like item_id[], qty[]
+
         item_ids = request.POST.getlist('item_id[]')
-        qtys = request.POST.getlist('qty[]')
-        
-        if not school_id or not item_ids:
-            messages.error(request, 'Please select a school and add at least one item.')
+        qtys     = request.POST.getlist('qty[]')
+
+        if not item_ids:
+            messages.error(request, 'Please add at least one item to the bill.')
             return redirect('bill_create')
-            
-        try:
-            school = School.objects.get(id=school_id)
-        except School.DoesNotExist:
-            messages.error(request, 'Invalid school.')
+
+        # Resolve school — 'general' or empty means a general-items-only bill.
+        # We still need a School FK. Detect the school from the first school-specific item.
+        school = None
+        if school_id and school_id != 'general':
+            try:
+                school = School.objects.get(id=school_id)
+            except School.DoesNotExist:
+                messages.error(request, 'Invalid school selected.')
+                return redirect('bill_create')
+
+        # If no school yet, scan items to find one
+        if school is None:
+            for sp_id in item_ids:
+                try:
+                    sp_check = SchoolProduct.objects.select_related('school').get(id=sp_id)
+                    if sp_check.school is not None:
+                        school = sp_check.school
+                        break
+                except SchoolProduct.DoesNotExist:
+                    pass
+
+        # Still no school → all items are general. Use a sentinel "General" school or error.
+        if school is None:
+            messages.error(request, 'Could not determine school. Please select a school or add at least one school-specific item.')
             return redirect('bill_create')
 
         with db_transaction.atomic():
@@ -511,35 +565,33 @@ def bill_create(request):
                 customer_name=customer_name,
                 customer_phone=customer_phone,
                 payment_mode=payment_mode,
-                total_amount=0
+                total_amount=0,
             )
-            
+
             total_amount = 0
-            
+
             for i in range(len(item_ids)):
                 sp_id = item_ids[i]
-                qty = _safe_int(qtys[i], minimum=1)
-                
+                qty   = _safe_int(qtys[i], minimum=1)
+
                 try:
-                    # SchoolProduct for this bill. General items have school=None.
-                    sp = SchoolProduct.objects.get(id=sp_id)
-                    # Validate it belongs to the right school or is a General Item
+                    sp = SchoolProduct.objects.select_related('school', 'product', 'size').get(id=sp_id)
+                    # Allow: same school items OR general items (school=None)
                     if sp.school is not None and sp.school != school:
-                        continue  # Skip items from another school
+                        # Item from a different school — skip silently (shouldn't happen with JS guard)
+                        continue
                 except SchoolProduct.DoesNotExist:
-                    continue  # Skip invalid item IDs
-                
+                    continue
+
                 if sp.stock < qty:
-                    # In a real app we might abort, but let's allow it and go negative, or abort:
-                    # Let's abort the whole transaction for safety.
-                    messages.error(request, f'Not enough stock for {sp.product.name} ({sp.size.size_value}). Only {sp.stock} left.')
+                    messages.error(request, f'Not enough stock for {sp.product.name} ({sp.size.size_value}). Only {sp.stock} in stock.')
                     db_transaction.set_rollback(True)
                     return redirect('bill_create')
-                
-                price = sp.price or 0
+
+                price      = sp.price or 0
                 line_total = price * qty
                 total_amount += line_total
-                
+
                 BillItem.objects.create(
                     bill=bill,
                     school_product=sp,
@@ -547,32 +599,57 @@ def bill_create(request):
                     size_value=sp.size.size_value,
                     quantity=qty,
                     unit_price=price,
-                    line_total=line_total
+                    line_total=line_total,
                 )
-                
-                # Record transaction and deduct stock
                 _record_transaction(sp, 'BILL_SALE', qty, f'Bill #{bill.bill_number}')
-            
+
             if total_amount == 0:
-                messages.error(request, 'Invalid bill (amount is 0).')
+                messages.error(request, 'Bill total is ₹0. Make sure items have prices set.')
                 db_transaction.set_rollback(True)
                 return redirect('bill_create')
-                
+
             bill.total_amount = total_amount
             bill.save()
-            
-            messages.success(request, f'Bill generated successfully!')
-            return redirect('bill_print', pk=bill.pk)
-            
+
+        messages.success(request, f'Bill {bill.bill_number} generated successfully!')
+        return redirect('bill_print', pk=bill.pk)
+
     return render(request, 'billing/create.html', {
         'schools': School.objects.all(),
-        'page_title': 'Create Bill'
+        'page_title': 'Create Bill',
     })
+
 
 
 def bill_print(request, pk):
     bill = get_object_or_404(Bill, pk=pk)
     return render(request, 'billing/print.html', {'bill': bill})
+
+
+def bill_void(request, pk):
+    """Void a bill and restore stock for every item."""
+    bill = get_object_or_404(Bill, pk=pk)
+    if bill.is_void:
+        messages.error(request, f'Bill {bill.bill_number} is already voided.')
+        return redirect('bill_history')
+
+    if request.method == 'POST':
+        with db_transaction.atomic():
+            for item in bill.items.select_related('school_product').all():
+                # Restore stock
+                SchoolProduct.objects.filter(pk=item.school_product_id).update(
+                    stock=F('stock') + item.quantity
+                )
+                # Mark the associated BILL_SALE transaction as void too
+                item.school_product.transactions.filter(
+                    transaction_type='BILL_SALE',
+                    note__icontains=bill.bill_number,
+                    is_void=False
+                ).update(is_void=True, void_reason=f'Bill {bill.bill_number} voided')
+            bill.is_void = True
+            bill.save()
+        messages.success(request, f'Bill {bill.bill_number} voided. Stock has been restored.')
+    return redirect('bill_history')
 
 
 def bill_history(request):
@@ -653,7 +730,10 @@ def labels_setup(request):
             return redirect('labels_setup')
             
         try:
-            sp = SchoolProduct.objects.get(school_id=school_id, product_id=product_id, size_id=size_id)
+            if school_id == 'general':
+                sp = SchoolProduct.objects.get(school__isnull=True, product_id=product_id, size_id=size_id)
+            else:
+                sp = SchoolProduct.objects.get(school_id=school_id, product_id=product_id, size_id=size_id)
             # Store in session to pass to print view
             request.session['print_label_data'] = {
                 'sp_id': sp.id,
@@ -678,9 +758,13 @@ def labels_print(request):
         
     sp = get_object_or_404(SchoolProduct, id=data['sp_id'])
     qty = data['qty']
+
+    # Guard: ensure SKU is set (edge case for very old records)
+    if not sp.sku_code:
+        sp.sku_code = f'HSD{sp.pk:06d}'
+        SchoolProduct.objects.filter(pk=sp.pk).update(sku_code=sp.sku_code)
     
     # Generate SVG Barcode
-    # code128 is a very standard alphanumeric barcode
     code128 = barcode.get('code128', sp.sku_code, writer=SVGWriter())
     # We want a clean barcode without the text below it (we'll add our own text)
     options = {
@@ -744,8 +828,11 @@ def setup_school_delete(request, pk):
         school = School.objects.filter(pk=pk).first()
         if school:
             name = school.name
-            school.delete()
-            messages.success(request, f'School "{name}" deleted.')
+            if school.bills.exists() or StockTransaction.objects.filter(school_product__school=school).exists() or ManufacturingOrder.objects.filter(school_product__school=school).exists():
+                messages.error(request, f'Cannot delete "{name}" — it has existing bills, orders, or stock records. Remove those first.')
+            else:
+                school.delete()
+                messages.success(request, f'School "{name}" deleted.')
         else:
             messages.warning(request, 'School was already deleted.')
     return redirect('setup_home')
@@ -770,8 +857,11 @@ def setup_product_delete(request, pk):
         product = Product.objects.filter(pk=pk).first()
         if product:
             name = product.name
-            product.delete()
-            messages.success(request, f'Product "{name}" deleted.')
+            if StockTransaction.objects.filter(school_product__product=product).exists() or BillItem.objects.filter(school_product__product=product).exists() or ManufacturingOrder.objects.filter(school_product__product=product).exists():
+                messages.error(request, f'Cannot delete "{name}" — it has existing transactions, bills, or orders.')
+            else:
+                product.delete()
+                messages.success(request, f'Product "{name}" deleted.')
         else:
             messages.warning(request, 'Product was already deleted.')
     return redirect('setup_home')
@@ -798,8 +888,11 @@ def setup_size_delete(request, pk):
         size = Size.objects.filter(pk=pk).first()
         if size:
             label = str(size)
-            size.delete()
-            messages.success(request, f'Size "{label}" deleted.')
+            if StockTransaction.objects.filter(school_product__size=size).exists() or BillItem.objects.filter(school_product__size=size).exists() or ManufacturingOrder.objects.filter(school_product__size=size).exists():
+                messages.error(request, f'Cannot delete size "{label}" — it is used in transactions, bills, or orders.')
+            else:
+                size.delete()
+                messages.success(request, f'Size "{label}" deleted.')
         else:
             messages.warning(request, 'Size was already deleted.')
     return redirect('setup_home')
@@ -872,4 +965,151 @@ def setup_link_bulk(request):
 
         messages.success(request, f'{created} size(s) linked for {school_name} → {product.name}.')
     return redirect('setup_home')
+
+
+# ─── Analytics Dashboard ───────────────────────────────────────────────────────
+
+def analytics_dashboard(request):
+    from datetime import date as date_type
+    import calendar
+
+    valid_bills = Bill.objects.filter(is_void=False)
+    today       = timezone.now().date()
+
+    # ── Available Years ──────────────────────────────────────────
+    year_list = sorted(set(
+        valid_bills.values_list('created_at__year', flat=True).distinct()
+    )) or [today.year]
+
+    # ── GET params ───────────────────────────────────────────────
+    sel_year     = int(request.GET.get('year',      today.year))
+    sel_month    = request.GET.get('month',    '')
+    sel_day      = request.GET.get('day',      '')
+    sel_week_day = request.GET.get('week_day', '')  # date string YYYY-MM-DD
+
+    # ── LAST 7 DAYS STRIP ────────────────────────────────────────
+    week_days = []
+    for i in range(6, -1, -1):               # 6 days ago → today
+        d = today - timedelta(days=i)
+        rev = valid_bills.filter(created_at__date=d).aggregate(r=Sum('total_amount'))['r'] or 0
+        week_days.append({
+            'date':     d,
+            'date_str': str(d),
+            'label':    d.strftime('%a'),     # Mon, Tue …
+            'num':      d.day,
+            'day_num':  d.day,
+            'revenue':  float(rev),
+            'is_today': d == today,
+        })
+
+    # Selected week-day detail
+    week_day_rev   = 0
+    week_day_bills = 0
+    week_day_obj   = None
+    if sel_week_day:
+        try:
+            wd = date_type.fromisoformat(sel_week_day)
+            week_day_obj   = wd
+            qs_wd          = valid_bills.filter(created_at__date=wd)
+            week_day_rev   = qs_wd.aggregate(r=Sum('total_amount'))['r'] or 0
+            week_day_bills = qs_wd.count()
+        except ValueError:
+            pass
+
+    # ── YEARLY total ─────────────────────────────────────────────
+    qs_year        = valid_bills.filter(created_at__year=sel_year)
+    yearly_revenue = qs_year.aggregate(r=Sum('total_amount'))['r'] or 0
+    yearly_bills   = qs_year.count()
+
+    # ── MONTHLY GRID ─────────────────────────────────────────────
+    monthly_rows = (
+        qs_year.annotate(m=TruncMonth('created_at'))
+        .values('m')
+        .annotate(revenue=Sum('total_amount'), bills=Count('id'))
+        .order_by('m')
+    )
+    month_map = {r['m'].month: {'revenue': float(r['revenue']), 'bills': r['bills']}
+                 for r in monthly_rows}
+    months_data = [
+        {'num': mn, 'name': calendar.month_abbr[mn],
+         'revenue': month_map.get(mn, {}).get('revenue', 0),
+         'bills':   month_map.get(mn, {}).get('bills',   0)}
+        for mn in range(1, 13)
+    ]
+
+    # ── MONTHLY DETAIL ───────────────────────────────────────────
+    monthly_revenue = 0
+    monthly_bills   = 0
+    daily_rows      = []
+    if sel_month:
+        mn      = int(sel_month)
+        qs_m    = valid_bills.filter(created_at__year=sel_year, created_at__month=mn)
+        monthly_revenue = qs_m.aggregate(r=Sum('total_amount'))['r'] or 0
+        monthly_bills   = qs_m.count()
+        daily_rows = [
+            {'day': r['d'].day, 'revenue': float(r['revenue']), 'bills': r['bills']}
+            for r in (
+                qs_m.annotate(d=TruncDay('created_at'))
+                .values('d')
+                .annotate(revenue=Sum('total_amount'), bills=Count('id'))
+                .order_by('d')
+            )
+        ]
+
+    # ── DAILY DETAIL (from monthly table click) ───────────────────
+    day_revenue = 0
+    day_bills   = 0
+    if sel_month and sel_day:
+        dd          = date_type(sel_year, int(sel_month), int(sel_day))
+        qs_d        = valid_bills.filter(created_at__date=dd)
+        day_revenue = qs_d.aggregate(r=Sum('total_amount'))['r'] or 0
+        day_bills   = qs_d.count()
+
+    # ── SEASONAL — only Summer & Winter ──────────────────────────
+    def s_rev(months_list):
+        return float(
+            valid_bills.filter(created_at__year=sel_year, created_at__month__in=months_list)
+            .aggregate(r=Sum('total_amount'))['r'] or 0
+        )
+
+    seasons = [
+        {'name': 'Summer', 'months': 'Apr – Sep', 'rev': s_rev([4,5,6,7,8,9]),    'icon': '☀️', 'color': '#f59e0b'},
+        {'name': 'Winter', 'months': 'Oct – Mar', 'rev': s_rev([10,11,12,1,2,3]), 'icon': '❄️', 'color': '#3b82f6'},
+    ]
+
+    # ── Chart data ────────────────────────────────────────────────
+    chart_labels = json.dumps([m['name'] for m in months_data])
+    chart_data   = json.dumps([m['revenue'] for m in months_data])
+
+    ctx = {
+        'today':            today,
+        'year_list':        year_list,
+        'sel_year':         sel_year,
+        'sel_month':        sel_month,
+        'sel_month_name':   calendar.month_name[int(sel_month)] if sel_month else '',
+        'sel_day':          sel_day,
+        'sel_week_day':     sel_week_day,
+        # 7-day strip
+        'week_days':        week_days,
+        'week_day_rev':     week_day_rev,
+        'week_day_bills':   week_day_bills,
+        'week_day_obj':     week_day_obj,
+        # Yearly
+        'yearly_revenue':   yearly_revenue,
+        'yearly_bills':     yearly_bills,
+        # Monthly
+        'months_data':      months_data,
+        'monthly_revenue':  monthly_revenue,
+        'monthly_bills':    monthly_bills,
+        'daily_rows':       daily_rows,
+        # Day detail
+        'day_revenue':      day_revenue,
+        'day_bills':        day_bills,
+        # Seasonal
+        'seasons':          seasons,
+        # Chart
+        'chart_labels':     chart_labels,
+        'chart_data':       chart_data,
+    }
+    return render(request, 'dashboard/analytics.html', ctx)
 

@@ -53,7 +53,10 @@
       <tbody>
         {% for bill in bills %}
         <tr{% if bill.is_void %} class="void-row"{% endif %}>
-          <td><span class="bill-number">{{ bill.bill_number }}</span></td>
+          <td>
+            <span class="bill-number">{{ bill.bill_number }}</span>
+            {% if bill.is_void %}<span class="tx-chip" style="background:rgba(239,68,68,0.1);color:var(--red);border:1px solid rgba(239,68,68,0.2);font-size:0.55rem;padding:2px 7px;margin-left:6px;">VOID</span>{% endif %}
+          </td>
           <td class="text-muted">{{ bill.created_at|date:"d M Y, H:i" }}</td>
           <td>{{ bill.school.name }}</td>
           <td>
@@ -61,9 +64,15 @@
             {% if bill.customer_phone %}<br><span style="font-size:0.7rem" class="text-muted">{{ bill.customer_phone }}</span>{% endif %}
           </td>
           <td><span class="tx-chip tx-{{ bill.payment_mode }}">{{ bill.get_payment_mode_display }}</span></td>
-          <td style="text-align:right"><strong>₹{{ bill.total_amount }}</strong></td>
-          <td style="text-align:center">
+          <td style="text-align:right"><strong {% if bill.is_void %}style="text-decoration:line-through;opacity:0.5;"{% endif %}>₹{{ bill.total_amount }}</strong></td>
+          <td style="text-align:center; display:flex; gap:6px; justify-content:center;">
             <a href="{% url 'bill_print' bill.pk %}" class="btn btn-outline btn-sm" target="_blank">Print</a>
+            {% if not bill.is_void %}
+            <form method="POST" action="{% url 'bill_void' bill.pk %}" onsubmit="return confirm('Void this bill? Stock will be restored.')">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-sm" style="background:rgba(239,68,68,0.1);color:var(--red);border:1px solid rgba(239,68,68,0.25);">Void</button>
+            </form>
+            {% endif %}
           </td>
         </tr>
         {% empty %}

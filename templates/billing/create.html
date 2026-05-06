@@ -40,6 +40,7 @@
         <label>School</label>
         <select class="searchable" id="school">
           <option value="">-- Select School --</option>
+          <option value="general">General Items</option>
           {% for s in schools %}<option value="{{ s.id }}">{{ s.code }} - {{ s.name }}</option>{% endfor %}
         </select>
       </div>
@@ -190,23 +191,36 @@
     const productId = manualProduct.value;
     const sizeId = manualSize.value;
     
-    if (!schoolId || !productId || !sizeId) {
-      alert('Please select School, Product, and Size.');
+    if (!productId || !sizeId) {
+      alert('Please select Product and Size.');
       return;
     }
+    // For manual add, school dropdown may be empty when picking general items
+    const lookupSchoolId = schoolId || 'general';
 
     try {
-      const res = await fetch(`/api/item-lookup/?school_id=${schoolId}&product_id=${productId}&size_id=${sizeId}`);
+      const res = await fetch(`/api/item-lookup/?school_id=${lookupSchoolId}&product_id=${productId}&size_id=${sizeId}`);
       if (!res.ok) throw new Error('Item not found');
       const item = await res.json();
 
-      // Enforce single school per bill
-      if (currentSchoolId === null) {
-        currentSchoolId = item.school_id;
-        formSchoolId.value = item.school_id;
-      } else if (currentSchoolId != item.school_id) {
-        alert('Cannot mix items from different schools in one bill.');
-        return;
+      // General items (school_id='general') are allowed in any bill
+      if (item.school_id !== 'general') {
+        if (currentSchoolId === null) {
+          currentSchoolId = item.school_id;
+          formSchoolId.value = item.school_id;
+        } else if (currentSchoolId !== 'general' && currentSchoolId != item.school_id) {
+          alert('Cannot mix items from different schools in one bill.');
+          return;
+        } else if (currentSchoolId === 'general') {
+          // First real school item after general items — lock to this school
+          currentSchoolId = item.school_id;
+          formSchoolId.value = item.school_id;
+        }
+      } else {
+        // General item: if no school locked yet, keep formSchoolId empty for now
+        if (currentSchoolId === null) {
+          currentSchoolId = 'general';
+        }
       }
 
       addItemToCart(item);
@@ -223,22 +237,29 @@
       if (!res.ok) throw new Error('Item not found');
       const item = await res.json();
       
-      // Enforce single school per bill
-      if (currentSchoolId === null) {
-        currentSchoolId = item.school_id;
-        formSchoolId.value = item.school_id;
-        // Lock manual dropdown to this school
-        manualSchool.value = item.school_id;
-        manualSchool.disabled = true;
-        // Trigger change event to load products
-        const evt = new Event('change');
-        manualSchool.dispatchEvent(evt);
-      } else if (currentSchoolId != item.school_id) {
-        alert("Cannot add items from different schools in the same bill.");
-        barcodeInput.value = '';
-        barcodeInput.disabled = false;
-        barcodeInput.focus();
-        return;
+      // General items (school_id='general') are allowed in any bill
+      if (item.school_id !== 'general') {
+        if (currentSchoolId === null) {
+          currentSchoolId = item.school_id;
+          formSchoolId.value = item.school_id;
+          // Lock manual dropdown to this school
+          manualSchool.value = item.school_id;
+          const evt = new Event('change');
+          manualSchool.dispatchEvent(evt);
+        } else if (currentSchoolId === 'general') {
+          // First school-specific item after general items — lock to this school
+          currentSchoolId = item.school_id;
+          formSchoolId.value = item.school_id;
+        } else if (currentSchoolId != item.school_id) {
+          alert("Cannot add items from different schools in the same bill.");
+          barcodeInput.value = '';
+          barcodeInput.disabled = false;
+          barcodeInput.focus();
+          return;
+        }
+      } else {
+        // General item: don't override the school lock
+        if (currentSchoolId === null) currentSchoolId = 'general';
       }
 
       addItemToCart(item);
