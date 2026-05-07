@@ -58,7 +58,7 @@
             {% if bill.is_void %}<span class="tx-chip" style="background:rgba(239,68,68,0.1);color:var(--red);border:1px solid rgba(239,68,68,0.2);font-size:0.55rem;padding:2px 7px;margin-left:6px;">VOID</span>{% endif %}
           </td>
           <td class="text-muted">{{ bill.created_at|date:"d M Y, H:i" }}</td>
-          <td>{{ bill.school.name }}</td>
+          <td>{{ bill.school_summary }}</td>
           <td>
             {% if bill.customer_name %}{{ bill.customer_name }}{% else %}<span class="text-muted">—</span>{% endif %}
             {% if bill.customer_phone %}<br><span style="font-size:0.7rem" class="text-muted">{{ bill.customer_phone }}</span>{% endif %}

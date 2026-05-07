@@ -38,7 +38,9 @@ def _safe_int(value, default=0, minimum=0):
     """Safely parse an integer from form input."""
     try:
         v = int(value)
-        return max(v, minimum)
+        if v < minimum:
+            return default
+        return v
     except (TypeError, ValueError):
         return default
 
@@ -531,6 +533,9 @@ def bill_create(request):
         if not item_ids:
             messages.error(request, 'Please add at least one item to the bill.')
             return redirect('bill_create')
+        if len(item_ids) != len(qtys):
+            messages.error(request, 'Bill item data is incomplete. Please review the bill and try again.')
+            return redirect('bill_create')
 
         # Resolve school — 'general' or empty means a general-items-only bill.
         # We still need a School FK. Detect the school from the first school-specific item.
@@ -573,13 +578,13 @@ def bill_create(request):
             for i in range(len(item_ids)):
                 sp_id = item_ids[i]
                 qty   = _safe_int(qtys[i], minimum=1)
+                if qty < 1:
+                    messages.error(request, 'Please enter a valid quantity for every bill item.')
+                    db_transaction.set_rollback(True)
+                    return redirect('bill_create')
 
                 try:
                     sp = SchoolProduct.objects.select_related('school', 'product', 'size').get(id=sp_id)
-                    # Allow: same school items OR general items (school=None)
-                    if sp.school is not None and sp.school != school:
-                        # Item from a different school — skip silently (shouldn't happen with JS guard)
-                        continue
                 except SchoolProduct.DoesNotExist:
                     continue
 
@@ -622,7 +627,7 @@ def bill_create(request):
 
 
 def bill_print(request, pk):
-    bill = get_object_or_404(Bill, pk=pk)
+    bill = get_object_or_404(Bill.objects.prefetch_related('items__school_product__school'), pk=pk)
     return render(request, 'billing/print.html', {'bill': bill})
 
 
@@ -653,14 +658,14 @@ def bill_void(request, pk):
 
 
 def bill_history(request):
-    qs = Bill.objects.prefetch_related('items').select_related('school')
+    qs = Bill.objects.prefetch_related('items__school_product__school').select_related('school')
     
     school_id = request.GET.get('school')
     date_range = request.GET.get('range', '')
     query = request.GET.get('q', '').strip()
     
     if school_id:
-        qs = qs.filter(school_id=school_id)
+        qs = qs.filter(Q(school_id=school_id) | Q(items__school_product__school_id=school_id)).distinct()
     if query:
         qs = qs.filter(Q(bill_number__icontains=query) | Q(customer_phone__icontains=query) | Q(customer_name__icontains=query))
         
@@ -1112,4 +1117,3 @@ def analytics_dashboard(request):
         'chart_data':       chart_data,
     }
     return render(request, 'dashboard/analytics.html', ctx)
-

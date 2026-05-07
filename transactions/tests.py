@@ -21,6 +21,14 @@ class BillingStockTests(TestCase):
             price=Decimal('450.00'),
             stock=10,
         )
+        self.other_school = School.objects.create(name='Other School', code='OS')
+        self.other_item = SchoolProduct.objects.create(
+            school=self.other_school,
+            product=self.product,
+            size=self.size,
+            price=Decimal('500.00'),
+            stock=8,
+        )
 
     def test_bill_sale_deducts_stock(self):
         response = self.client.post(reverse('bill_create'), {
@@ -63,3 +71,48 @@ class BillingStockTests(TestCase):
         self.assertEqual(self.item.stock, 10)
         self.assertTrue(tx.is_void)
         self.assertEqual(tx.void_reason, 'Billing mistake')
+
+    def test_bill_allows_items_from_multiple_schools(self):
+        response = self.client.post(reverse('bill_create'), {
+            'school': str(self.school.pk),
+            'payment_mode': 'CASH',
+            'item_id[]': [str(self.item.pk), str(self.other_item.pk)],
+            'qty[]': ['2', '1'],
+        })
+
+        self.assertEqual(response.status_code, 302)
+        self.item.refresh_from_db()
+        self.other_item.refresh_from_db()
+        self.assertEqual(self.item.stock, 8)
+        self.assertEqual(self.other_item.stock, 7)
+
+        bill = Bill.objects.get()
+        self.assertEqual(bill.items.count(), 2)
+        self.assertEqual(bill.total_amount, Decimal('1400.00'))
+        self.assertIn(self.school.name, bill.school_summary)
+        self.assertIn(self.other_school.name, bill.school_summary)
+
+    def test_bill_rejects_zero_quantity(self):
+        response = self.client.post(reverse('bill_create'), {
+            'school': str(self.school.pk),
+            'payment_mode': 'CASH',
+            'item_id[]': [str(self.item.pk)],
+            'qty[]': ['0'],
+        })
+
+        self.assertEqual(response.status_code, 302)
+        self.item.refresh_from_db()
+        self.assertEqual(self.item.stock, 10)
+        self.assertFalse(Bill.objects.exists())
+
+    def test_bill_rejects_incomplete_item_data(self):
+        response = self.client.post(reverse('bill_create'), {
+            'school': str(self.school.pk),
+            'payment_mode': 'CASH',
+            'item_id[]': [str(self.item.pk)],
+        })
+
+        self.assertEqual(response.status_code, 302)
+        self.item.refresh_from_db()
+        self.assertEqual(self.item.stock, 10)
+        self.assertFalse(Bill.objects.exists())

@@ -134,7 +134,6 @@
 {% block extra_js %}
 <script>
   let cart = [];
-  let currentSchoolId = null;
 
   // Manual Dropdowns Setup
   setupCascadingDropdowns({
@@ -203,26 +202,6 @@
       if (!res.ok) throw new Error('Item not found');
       const item = await res.json();
 
-      // General items (school_id='general') are allowed in any bill
-      if (item.school_id !== 'general') {
-        if (currentSchoolId === null) {
-          currentSchoolId = item.school_id;
-          formSchoolId.value = item.school_id;
-        } else if (currentSchoolId !== 'general' && currentSchoolId != item.school_id) {
-          alert('Cannot mix items from different schools in one bill.');
-          return;
-        } else if (currentSchoolId === 'general') {
-          // First real school item after general items — lock to this school
-          currentSchoolId = item.school_id;
-          formSchoolId.value = item.school_id;
-        }
-      } else {
-        // General item: if no school locked yet, keep formSchoolId empty for now
-        if (currentSchoolId === null) {
-          currentSchoolId = 'general';
-        }
-      }
-
       addItemToCart(item);
     } catch (e) {
       alert('Item not found. Make sure this combination exists in inventory.');
@@ -237,31 +216,6 @@
       if (!res.ok) throw new Error('Item not found');
       const item = await res.json();
       
-      // General items (school_id='general') are allowed in any bill
-      if (item.school_id !== 'general') {
-        if (currentSchoolId === null) {
-          currentSchoolId = item.school_id;
-          formSchoolId.value = item.school_id;
-          // Lock manual dropdown to this school
-          manualSchool.value = item.school_id;
-          const evt = new Event('change');
-          manualSchool.dispatchEvent(evt);
-        } else if (currentSchoolId === 'general') {
-          // First school-specific item after general items — lock to this school
-          currentSchoolId = item.school_id;
-          formSchoolId.value = item.school_id;
-        } else if (currentSchoolId != item.school_id) {
-          alert("Cannot add items from different schools in the same bill.");
-          barcodeInput.value = '';
-          barcodeInput.disabled = false;
-          barcodeInput.focus();
-          return;
-        }
-      } else {
-        // General item: don't override the school lock
-        if (currentSchoolId === null) currentSchoolId = 'general';
-      }
-
       addItemToCart(item);
       scannerBar.classList.remove('processing');
       scannerBar.classList.add('success');
@@ -287,6 +241,8 @@
       cart.push({
         id: item.id,
         name: item.product_name,
+        schoolId: item.school_id,
+        schoolName: item.school_name,
         size: item.size_value,
         price: parseFloat(item.price),
         qty: 1,
@@ -305,7 +261,6 @@
       }
     }
     if (cart.length === 0) {
-      currentSchoolId = null;
       formSchoolId.value = '';
       manualSchool.disabled = false;
       manualSchool.value = '';
@@ -322,6 +277,8 @@
     }
 
     cartBody.innerHTML = '';
+    const firstSchoolItem = cart.find(item => item.schoolId !== 'general');
+    formSchoolId.value = firstSchoolItem ? firstSchoolItem.schoolId : '';
     let grandTotal = 0;
     let totalQty = 0;
 
@@ -335,6 +292,7 @@
         <td>
           <input type="hidden" name="item_id[]" value="${item.id}" />
           <strong>${item.name}</strong><br>
+          <span class="text-muted">${item.schoolName}</span><br>
           <span class="text-muted">Size: ${item.size}</span>
           ${item.stock < item.qty ? '<br><span style="color:var(--red);font-size:0.7rem;font-weight:700">Warning: Only ' + item.stock + ' in stock</span>' : ''}
         </td>

@@ -79,7 +79,7 @@ Ensure you have Python 3.x installed on your system.
 
 6.  **Start the Development Server**
     ```bash
-    python manage.py run server
+    python manage.py runserver
     ```
     Visit `http://127.0.0.1:8000/admin` to start managing your inventory!
 

@@ -54,6 +54,26 @@ class Bill(models.Model):
     def __str__(self):
         return f"Bill #{self.bill_number} — {self.school.name} — ₹{self.total_amount}"
 
+    @property
+    def school_summary(self):
+        school_names = []
+        for item in self.items.select_related('school_product__school').all():
+            school = item.school_product.school
+            name = school.name if school else 'General Items'
+            if name not in school_names:
+                school_names.append(name)
+        return ', '.join(school_names) if school_names else self.school.name
+
+    @property
+    def has_multiple_schools(self):
+        school_names = []
+        for item in self.items.select_related('school_product__school').all():
+            school = item.school_product.school
+            name = school.name if school else 'General Items'
+            if name not in school_names:
+                school_names.append(name)
+        return len(school_names) > 1
+
     @staticmethod
     def generate_bill_number():
         today = timezone.now()

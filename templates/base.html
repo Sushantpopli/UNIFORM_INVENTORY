@@ -156,7 +156,10 @@
   document.addEventListener('DOMContentLoaded', function() {
     document.querySelectorAll('select.searchable').forEach(function(el) {
       new TomSelect(el, {
-        create: false
+        create: false,
+        onItemAdd: function() {
+          this.blur();   // force out of edit mode so selected text shows
+        }
       });
     });
   });

@@ -68,7 +68,7 @@
       <div>
         <strong>Bill No:</strong> {{ bill.bill_number }}<br>
         <strong>Date:</strong> {{ bill.created_at|date:"d/m/Y H:i" }}<br>
-        <strong>School:</strong> {{ bill.school.name }}
+        <strong>School:</strong> {{ bill.school_summary }}
       </div>
     </div>
     
@@ -96,7 +96,12 @@
         {% for item in bill.items.all %}
         <tr>
           <td>
-            <div class="item-name">{{ item.product_name }}</div>
+            <div class="item-name">
+              {{ item.product_name }}
+              {% if bill.has_multiple_schools %}
+                <span class="item-meta" style="font-weight:normal;">({{ item.school_product.school.name|default:"General Items" }})</span>
+              {% endif %}
+            </div>
             <div class="item-meta">Size: {{ item.size_value }}</div>
           </td>
           <td class="text-center">{{ item.quantity }}</td>

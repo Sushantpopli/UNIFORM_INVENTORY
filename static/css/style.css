@@ -643,3 +643,19 @@ label { letter-spacing: 0.8px; }
 
 /* Table: sticky header */
 thead th { position: sticky; top: 0; background: var(--surface); z-index: 1; }
+
+/* --- TomSelect Single Line Fix --- */
+.ts-wrapper.single .ts-control {
+  flex-wrap: nowrap !important;
+  align-items: center;
+}
+.ts-wrapper.single .ts-control .item {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 1;
+}
+.ts-wrapper.single .ts-control > input {
+  min-width: 2px !important;
+  flex-shrink: 0;
+}

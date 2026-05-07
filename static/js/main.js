@@ -2,18 +2,24 @@
 
 function updateSelect(el, options, placeholder, disabled) {
   if (!el) return;
+  
+  // Destroy existing TomSelect instance first
+  if (el.tomselect) {
+    el.tomselect.destroy();
+  }
+  
+  // Rebuild native select
   el.innerHTML = '';
   if (placeholder) el.innerHTML += '<option value="">' + placeholder + '</option>';
   options.forEach(opt => { el.innerHTML += '<option value="' + opt.value + '">' + opt.text + '</option>'; });
   el.disabled = disabled;
   
-  if (el.tomselect) {
-    el.tomselect.clearOptions();
-    el.tomselect.clear(true);
-    if (placeholder) el.tomselect.addOption({value: '', text: placeholder});
-    options.forEach(opt => el.tomselect.addOption({value: opt.value, text: opt.text}));
-    if (disabled) el.tomselect.disable();
-    else el.tomselect.enable();
+  // Re-create TomSelect if the element has the searchable class
+  if (el.classList.contains('searchable')) {
+    new TomSelect(el, {
+      create: false,
+      onItemAdd: function() { this.blur(); }
+    });
   }
 }
 
@@ -24,56 +30,68 @@ function setupCascadingDropdowns({ schoolSel, productSel, sizeSel, stockDisplay 
   const stockEl = stockDisplay ? document.getElementById(stockDisplay) : null;
 
   if (school) {
-    school.addEventListener('change', async () => {
-      const id = school.value;
-      if (!id) { 
-        updateSelect(product, [], '-- Select Product --', false);
+    school.addEventListener('change', () => {
+      setTimeout(async () => {
+        const id = school.value;
+        // Blur to show selected text
+        if (school.tomselect) school.tomselect.blur();
+        if (!id) { 
+          updateSelect(product, [], '-- Select Product --', false);
+          if (size) updateSelect(size, [], '-- Select Size --', false);
+          if (stockEl) clearStock(stockEl);
+          return; 
+        }
+        updateSelect(product, [], 'Loading...', true);
         if (size) updateSelect(size, [], '-- Select Size --', false);
         if (stockEl) clearStock(stockEl);
-        return; 
-      }
-      updateSelect(product, [], 'Loading...', true);
-      if (size) updateSelect(size, [], '-- Select Size --', false);
-      if (stockEl) clearStock(stockEl);
-      
-      const res = await fetch('/api/products-for-school/?school_id=' + id);
-      const data = await res.json();
-      const opts = data.map(p => ({value: p.id, text: p.name}));
-      updateSelect(product, opts, '-- Select Product --', false);
+        
+        const res = await fetch('/api/products-for-school/?school_id=' + id);
+        const data = await res.json();
+        const opts = data.map(p => ({value: p.id, text: p.name}));
+        updateSelect(product, opts, '-- Select Product --', false);
+      }, 0);
     });
   }
 
   if (product) {
-    product.addEventListener('change', async () => {
-      const schoolId = school ? school.value : '';
-      const productId = product.value;
-      if (!productId || !schoolId) { 
-        if (size) updateSelect(size, [], '-- Select Size --', false);
-        if (stockEl) clearStock(stockEl);
-        return; 
-      }
-      if (size) {
-        updateSelect(size, [], 'Loading...', true);
-        if (stockEl) clearStock(stockEl);
-        
-        const res = await fetch('/api/sizes-for-school-product/?school_id=' + schoolId + '&product_id=' + productId);
-        const data = await res.json();
-        const opts = data.map(s => ({value: s.id, text: s.size_value}));
-        updateSelect(size, opts, '-- Select Size --', false);
-      }
+    product.addEventListener('change', () => {
+      setTimeout(async () => {
+        const schoolId = school ? school.value : '';
+        const productId = product.value;
+        // Blur to show selected text
+        if (product.tomselect) product.tomselect.blur();
+        if (!productId || !schoolId) { 
+          if (size) updateSelect(size, [], '-- Select Size --', false);
+          if (stockEl) clearStock(stockEl);
+          return; 
+        }
+        if (size) {
+          updateSelect(size, [], 'Loading...', true);
+          if (stockEl) clearStock(stockEl);
+          
+          const res = await fetch('/api/sizes-for-school-product/?school_id=' + schoolId + '&product_id=' + productId);
+          const data = await res.json();
+          const opts = data.map(s => ({value: s.id, text: s.size_value}));
+          updateSelect(size, opts, '-- Select Size --', false);
+        }
+      }, 0);
     });
   }
 
   if (size && stockEl) {
-    size.addEventListener('change', async () => {
-      const schoolId = school ? school.value : '';
-      const productId = product ? product.value : '';
-      const sizeId = size.value;
-      if (!sizeId || !schoolId || !productId) { clearStock(stockEl); return; }
-      stockEl.innerHTML = '<span class="spinner"></span>';
-      const res = await fetch('/api/stock-check/?school_id=' + schoolId + '&product_id=' + productId + '&size_id=' + sizeId);
-      const data = await res.json();
-      renderStock(stockEl, data.stock, data.threshold);
+    size.addEventListener('change', () => {
+      setTimeout(async () => {
+        const schoolId = school ? school.value : '';
+        const productId = product ? product.value : '';
+        const sizeId = size.value;
+        // Blur to show selected text
+        if (size.tomselect) size.tomselect.blur();
+        if (!sizeId || !schoolId || !productId) { clearStock(stockEl); return; }
+        stockEl.innerHTML = '<span class="spinner"></span>';
+        const res = await fetch('/api/stock-check/?school_id=' + schoolId + '&product_id=' + productId + '&size_id=' + sizeId);
+        const data = await res.json();
+        renderStock(stockEl, data.stock, data.threshold);
+      }, 0);
     });
   }
 }
@@ -122,18 +140,24 @@ function setupExchangeDropdowns() {
   }
 
   if (school && product) {
-    school.addEventListener('change', async () => {
-      updateSelect(product, [], 'Loading...', true);
-      const res = await fetch('/api/products-for-school/?school_id=' + school.value);
-      const products = await res.json();
-      const opts = products.map(p => ({value: p.id, text: p.name}));
-      updateSelect(product, opts, '-- Select Product --', false);
-      if (oldSize) updateSelect(oldSize, [], '-- Select Size --', false);
-      if (newSize) updateSelect(newSize, [], '-- Select Size --', false);
+    school.addEventListener('change', () => {
+      setTimeout(async () => {
+        if (school.tomselect) school.tomselect.blur();
+        updateSelect(product, [], 'Loading...', true);
+        const res = await fetch('/api/products-for-school/?school_id=' + school.value);
+        const products = await res.json();
+        const opts = products.map(p => ({value: p.id, text: p.name}));
+        updateSelect(product, opts, '-- Select Product --', false);
+        if (oldSize) updateSelect(oldSize, [], '-- Select Size --', false);
+        if (newSize) updateSelect(newSize, [], '-- Select Size --', false);
+      }, 0);
     });
     product.addEventListener('change', () => {
-      if (oldSize) loadSizes(oldSize);
-      if (newSize) loadSizes(newSize);
+      setTimeout(() => {
+        if (product.tomselect) product.tomselect.blur();
+        if (oldSize) loadSizes(oldSize);
+        if (newSize) loadSizes(newSize);
+      }, 0);
     });
   }
 }
