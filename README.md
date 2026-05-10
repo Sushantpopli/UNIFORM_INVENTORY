@@ -1,10 +1,10 @@
-# 👕 Uniform Inventory Management System
+# Uniform Inventory Management System
 
 A professional Django-based inventory management system designed to streamline the tracking and management of school uniforms. This application features a premium, modern UI with dark mode, real-time stock tracking, and a fast POS billing interface.
 
 ---
 
-## 📸 Preview
+## Preview
 
 <div align="center">
   <h3>Modern Dashboard</h3>
@@ -21,17 +21,17 @@ A professional Django-based inventory management system designed to streamline t
 
 ---
 
-## 🚀 Features
+## Features
 
--   **🏫 School Management**: Maintain a database of schools with unique codes.
--   **📦 Product Catalog**: Manage different types of uniform items (e.g., Shirts, Trousers, Blazers).
--   **📏 Size Tracking**: Define available sizes for each specific product.
--   **📊 Inventory & Pricing**: Track stock levels and set custom prices for each product-size combination per school.
--   **🛠 Admin Dashboard**: Full-featured Django admin interface for easy data management.
+-   **School Management**: Maintain a database of schools with unique codes.
+-   **Product Catalog**: Manage different types of uniform items (for example, shirts, trousers, and blazers).
+-   **Size Tracking**: Define available sizes for each specific product.
+-   **Inventory and Pricing**: Track stock levels and set custom prices for each product-size combination per school.
+-   **Admin Dashboard**: Full-featured Django admin interface for easy data management.
 
 ---
 
-## 🛠 Tech Stack
+## Tech Stack
 
 -   **Framework**: [Django](https://www.djangoproject.com/)
 -   **Database**: SQLite (Default)
@@ -39,13 +39,13 @@ A professional Django-based inventory management system designed to streamline t
 
 ---
 
-## 📋 Prerequisites
+## Prerequisites
 
 Ensure you have Python 3.x installed on your system.
 
 ---
 
-## ⚙️ Installation & Setup
+## Installation and Setup
 
 1.  **Clone the Repository**
     ```bash
@@ -83,28 +83,40 @@ Ensure you have Python 3.x installed on your system.
     ```
     Visit `http://127.0.0.1:8000/admin` to start managing your inventory!
 
----
+For local HTTP development, set the following in `.env`:
 
-## 📂 Project Structure
-
-```text
-├── products/          # Product definitions and models
-├── schools/           # School and inventory (SchoolProduct) logic
-├── sizes/             # Size management per product
-├── uniform_project/   # Core settings and configuration
-├── manage.py          # Django management script
-└── requirements.txt   # Project dependencies
+```env
+DEBUG=True
+SECURE_SSL_REDIRECT=False
+SESSION_COOKIE_SECURE=False
+CSRF_COOKIE_SECURE=False
+SECURE_HSTS_SECONDS=0
+SECURE_HSTS_INCLUDE_SUBDOMAINS=False
+SECURE_HSTS_PRELOAD=False
 ```
 
 ---
 
-## 🤝 Contributing
+## Project Structure
+
+```text
+products/          # Product definitions and models
+schools/           # School and inventory (SchoolProduct) logic
+sizes/             # Size management per product
+uniform_project/   # Core settings and configuration
+manage.py          # Django management script
+requirements.txt   # Project dependencies
+```
+
+---
+
+## Contributing
 
 Contributions are welcome! Feel free to open an issue or submit a pull request.
 
 ---
 
-## 📄 License
+## License
 
 This project is licensed under the MIT License.
 

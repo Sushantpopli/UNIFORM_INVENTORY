@@ -56,4 +56,6 @@ urlpatterns = [
     path('setup/size/<int:pk>/delete/', views.setup_size_delete, name='setup_size_delete'),
     path('setup/link/add/', views.setup_link_add, name='setup_link_add'),
     path('setup/link/bulk/', views.setup_link_bulk, name='setup_link_bulk'),
+    path('setup/import/', views.setup_import_data, name='setup_import_data'),
+    path('setup/template/', views.setup_download_template, name='setup_download_template'),
 ]

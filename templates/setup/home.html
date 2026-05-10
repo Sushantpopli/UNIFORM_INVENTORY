@@ -28,6 +28,7 @@
   <button class="setup-tab" onclick="switchTab('products')" id="tab-products">👕 Products</button>
   <button class="setup-tab" onclick="switchTab('sizes')" id="tab-sizes">📏 Sizes</button>
   <button class="setup-tab" onclick="switchTab('link')" id="tab-link">🔗 Link SKUs</button>
+  <button class="setup-tab" onclick="switchTab('import')" id="tab-import">📂 Bulk Import</button>
 </div>
 
 <!-- ── SCHOOLS TAB ── -->
@@ -216,6 +217,33 @@
       </form>
     </div>
 
+  </div>
+</div>
+
+<!-- ── BULK IMPORT TAB ── -->
+<div id="panel-import" class="setup-panel" style="display:none;">
+  <div class="card" style="max-width:600px;">
+    <div style="font-size:1.1rem; font-weight:800; margin-bottom:8px;">📂 Import Inventory via CSV</div>
+    <div style="font-size:0.85rem; color:var(--text-muted); margin-bottom:20px;">
+      Upload a CSV file to automatically create schools, products, sizes, and set starting stock & prices.
+    </div>
+    
+    <div style="background:var(--surface-2); padding:16px; border-radius:10px; margin-bottom:20px; border: 1px dashed var(--border);">
+      <h4 style="margin:0 0 10px 0; font-size:0.9rem;">Step 1: Download Template</h4>
+      <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:12px;">Use this exact format. Do not change the column headers.</p>
+      <a href="{% url 'setup_download_template' %}" class="btn btn-outline" style="text-decoration:none;">⬇️ Download Template</a>
+    </div>
+
+    <div style="background:var(--surface-2); padding:16px; border-radius:10px; border: 1px dashed var(--border);">
+      <h4 style="margin:0 0 10px 0; font-size:0.9rem;">Step 2: Upload Data</h4>
+      <form method="POST" action="{% url 'setup_import_data' %}" enctype="multipart/form-data">
+        {% csrf_token %}
+        <div class="form-group" style="margin-bottom:16px;">
+          <input type="file" name="csv_file" accept=".csv" required style="padding:10px; width:100%; border:1px solid var(--border); border-radius:6px; background:var(--surface); color:var(--text);" />
+        </div>
+        <button type="submit" class="btn btn-primary" style="width:100%;">Upload & Import Data</button>
+      </form>
+    </div>
   </div>
 </div>
 

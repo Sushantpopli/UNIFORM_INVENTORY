@@ -4,10 +4,12 @@ from django.db.models.functions import TruncMonth, TruncDay
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.core.paginator import Paginator
-from django.http import JsonResponse
+from django.core.cache import cache
+from django.http import JsonResponse, HttpResponse
 from django.utils import timezone
 from datetime import timedelta
 import json
+import csv
 
 from schools.models import School, SchoolProduct
 from products.models import Product
@@ -154,16 +156,34 @@ def api_item_lookup(request):
 # ─── Dashboard ─────────────────────────────────────────────────────────────────
 
 def dashboard(request):
-    total_skus = SchoolProduct.objects.count()
-    total_stock = SchoolProduct.objects.aggregate(t=Sum('stock'))['t'] or 0
+    total_skus = cache.get('dashboard_total_skus')
+    if total_skus is None:
+        total_skus = SchoolProduct.objects.count()
+        cache.set('dashboard_total_skus', total_skus, 300)
+
+    total_stock = cache.get('dashboard_total_stock')
+    if total_stock is None:
+        total_stock = SchoolProduct.objects.aggregate(t=Sum('stock'))['t'] or 0
+        cache.set('dashboard_total_stock', total_stock, 300)
+
+    pending_orders = cache.get('dashboard_pending_orders')
+    if pending_orders is None:
+        pending_orders = ManufacturingOrder.objects.filter(status__in=['PENDING', 'PARTIAL']).count()
+        cache.set('dashboard_pending_orders', pending_orders, 300)
+
     low_stock_qs = SchoolProduct.objects.filter(
         stock__lte=F('low_stock_threshold')
     ).select_related('school', 'product', 'size')
-    low_stock_count = low_stock_qs.count()
+    
+    # We still need low_stock_count here, can use the same cache key as context processor
+    low_stock_count = cache.get('low_stock_count')
+    if low_stock_count is None:
+        low_stock_count = low_stock_qs.count()
+        cache.set('low_stock_count', low_stock_count, 300)
+
     recent_txs = StockTransaction.objects.filter(is_void=False).select_related(
         'school_product__school', 'school_product__product', 'school_product__size'
     )[:10]
-    pending_orders = ManufacturingOrder.objects.filter(status__in=['PENDING', 'PARTIAL']).count()
 
     ctx = {
         'total_skus': total_skus,
@@ -969,6 +989,101 @@ def setup_link_bulk(request):
                 created += 1
 
         messages.success(request, f'{created} size(s) linked for {school_name} → {product.name}.')
+    return redirect('setup_home')
+
+
+def setup_download_template(request):
+    response = HttpResponse(
+        content_type='text/csv',
+        headers={'Content-Disposition': 'attachment; filename="inventory_template.csv"'},
+    )
+    writer = csv.writer(response)
+    writer.writerow(['School Name', 'Product Name', 'Size', 'Price', 'Initial Stock'])
+    writer.writerow(['St. Marys', 'Shirt', '32', '450', '100'])
+    writer.writerow(['General Item', 'Belt', 'Free', '150', '50'])
+    return response
+
+
+def setup_import_data(request):
+    if request.method == 'POST' and request.FILES.get('csv_file'):
+        csv_file = request.FILES['csv_file']
+        if not csv_file.name.endswith('.csv'):
+            messages.error(request, 'Please upload a valid CSV file.')
+            return redirect('setup_home')
+
+        try:
+            decoded_file = csv_file.read().decode('utf-8-sig').splitlines()
+            reader = csv.DictReader(decoded_file)
+            
+            # Normalize headers (lowercase, strip spaces) to be forgiving
+            if reader.fieldnames:
+                reader.fieldnames = [str(x).strip().lower() for x in reader.fieldnames]
+
+            created_count = 0
+            updated_count = 0
+
+            with db_transaction.atomic():
+                for row in reader:
+                    school_name = row.get('school name', '').strip()
+                    product_name = row.get('product name', '').strip()
+                    size_val = row.get('size', '').strip()
+                    price_val = row.get('price', '').strip()
+                    stock_val = row.get('initial stock', '').strip()
+
+                    if not product_name or not size_val:
+                        continue # Skip rows without basic product info
+
+                    # Handle School (General Item if blank or 'General Item')
+                    if not school_name or school_name.lower() in ['general item', 'general items', 'general', 'none']:
+                        school = None
+                    else:
+                        school, _ = School.objects.get_or_create(name=school_name, defaults={'code': school_name[:5].upper()})
+
+                    product, _ = Product.objects.get_or_create(name=product_name)
+                    size, _ = Size.objects.get_or_create(product=product, size_value=size_val)
+
+                    price = None
+                    if price_val:
+                        try:
+                            from decimal import Decimal
+                            price = Decimal(price_val.replace(',', ''))
+                        except:
+                            pass
+
+                    stock = 0
+                    if stock_val:
+                        try:
+                            stock = int(float(stock_val.replace(',', '')))
+                        except:
+                            pass
+
+                    # Link them all
+                    sp, created = SchoolProduct.objects.get_or_create(
+                        school=school, product=product, size=size,
+                        defaults={'price': price, 'stock': stock}
+                    )
+
+                    if created:
+                        created_count += 1
+                        # The SKU is generated automatically in save()
+                    else:
+                        # Update price and stock if they provided it
+                        needs_update = False
+                        if price is not None and sp.price != price:
+                            sp.price = price
+                            needs_update = True
+                        if stock > 0 and sp.stock != stock:
+                            sp.stock = stock
+                            needs_update = True
+                        
+                        if needs_update:
+                            sp.save()
+                            updated_count += 1
+
+            messages.success(request, f'Import Complete! Created {created_count} new items. Updated {updated_count} existing items.')
+        except Exception as e:
+            messages.error(request, f'Error reading file: Please ensure you are using the correct template.')
+            
     return redirect('setup_home')
 
 
