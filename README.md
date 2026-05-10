@@ -110,6 +110,17 @@ requirements.txt   # Project dependencies
 
 ---
 
+## Future Roadmap 🚀
+
+We are constantly looking for ways to make UniStock more powerful and easier for shop owners. Here is our vision for the next major updates:
+
+- [ ] **AI Inventory Assistant**: A natural language chatbot that lets you ask questions like *"Which products are not selling?"* or *"What should I order for next week?"* and get instant answers based on sales data.
+- [ ] **OCR Stock Scanner**: An experimental feature to take a photo of a physical stock list or supplier bill and automatically update the digital inventory.
+- [ ] **Automated Cloud Backups**: Secure, daily encrypted backups to ensure business data is never lost.
+- [ ] **Multi-User Permissions**: Role-based access for staff members with limited permissions (e.g., Sales only).
+
+---
+
 ## Contributing
 
 Contributions are welcome! Feel free to open an issue or submit a pull request.
