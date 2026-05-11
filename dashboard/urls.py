@@ -12,6 +12,7 @@ urlpatterns = [
 
     # Inventory
     path('inventory/', views.inventory_browse, name='inventory_browse'),
+    path('inventory/template/', views.download_inventory_template, name='download_inventory_template'),
     path('inventory/low-stock/', views.low_stock_report, name='low_stock_report'),
     path('inventory/update-price/<int:pk>/', views.inventory_update_price, name='inventory_update_price'),
 

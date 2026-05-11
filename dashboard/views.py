@@ -248,6 +248,26 @@ def inventory_browse(request):
     }
     return render(request, 'inventory/browse.html', ctx)
 
+import csv
+from django.http import HttpResponse
+
+def download_inventory_template(request):
+    """Generates a CSV template for bulk inventory import"""
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = 'attachment; filename="uni_inventory_template.csv"'
+    
+    writer = csv.writer(response)
+    # Headers matching the user's Excel template
+    writer.writerow(['School Name', 'School Code', 'Product Name', 'Size', 'Price', 'Initial Stock'])
+    
+    # Sample data for guidance
+    writer.writerow(['General', 'GEN', 'Belt', 'Free', '150', '50'])
+    writer.writerow(['St. Marys', 'STM', 'Shirt', '32', '450', '100'])
+    writer.writerow(['DPS', 'DPS', 'Pant', '34', '550', '25'])
+    
+    return response
+
+
 
 def inventory_update_price(request, pk):
     if request.method == 'POST':

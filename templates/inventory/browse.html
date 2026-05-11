@@ -3,7 +3,10 @@
 {% block nav_inventory %}active{% endblock %}
 {% block page_title %}Inventory & Pricing Explorer{% endblock %}
 {% block page_sub %}Select a school and product to view stock levels and manage pricing{% endblock %}
-{% block topbar_actions %}<a href="{% url 'stock_in' %}" class="btn btn-primary btn-sm">+ Add Stock</a>{% endblock %}
+{% block topbar_actions %}
+  <a href="{% url 'download_inventory_template' %}" class="btn btn-outline btn-sm" style="margin-right: 8px;">Download Template</a>
+  <a href="{% url 'stock_in' %}" class="btn btn-primary btn-sm">+ Add Stock</a>
+{% endblock %}
 
 {% block content %}
 
@@ -96,6 +99,7 @@
           <thead>
             <tr style="border-bottom: 1px solid var(--border);">
               <th style="padding: 10px 20px; text-align: left; color: var(--text-muted); font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">Size</th>
+              <th style="padding: 10px 20px; text-align: left; color: var(--text-muted); font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">Code</th>
               <th style="padding: 10px 20px; text-align: left; color: var(--text-muted); font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">SKU</th>
               <th style="padding: 10px 20px; text-align: center; color: var(--text-muted); font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">Stock</th>
               <th style="padding: 10px 20px; text-align: right; color: var(--text-muted); font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">Price (₹)</th>
@@ -106,6 +110,9 @@
             <tr style="border-bottom: 1px solid var(--border); transition: background 0.1s;" onmouseover="this.style.background='rgba(255,255,255,0.02)'" onmouseout="this.style.background='transparent'">
               <td style="padding: 10px 20px; font-weight: 700; color: var(--text); font-size: 0.95rem;">
                 {{ item.size.size_value }}
+              </td>
+              <td style="padding: 10px 20px;">
+                <span style="font-weight: 800; color: var(--gold); font-size: 0.85rem; letter-spacing: 1px;">{{ item.school.code|default:"GEN" }}</span>
               </td>
               <td style="padding: 10px 20px;">
                 <span style="font-family: 'Courier New', monospace; font-weight: 800; color: var(--text-dim); font-size: 0.8rem; background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.05); padding: 3px 8px; border-radius: 6px;">{{ item.sku_code }}</span>
