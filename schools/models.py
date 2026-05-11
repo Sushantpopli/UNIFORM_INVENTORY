@@ -40,10 +40,14 @@ class SchoolProduct(models.Model):
     def save(self, *args, **kwargs):
         # Auto-generate SKU code if not set
         if not self.sku_code and self.pk:
-            self.sku_code = f"HSD{self.pk:06d}"
+            prefix = self.school.code.upper() if self.school else "GEN"
+            self.sku_code = f"{prefix}{self.pk:06d}"
+        
         super().save(*args, **kwargs)
+        
         if not self.sku_code:
-            self.sku_code = f"HSD{self.pk:06d}"
+            prefix = self.school.code.upper() if self.school else "GEN"
+            self.sku_code = f"{prefix}{self.pk:06d}"
             SchoolProduct.objects.filter(pk=self.pk).update(sku_code=self.sku_code)
 
     @property

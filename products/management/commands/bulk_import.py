@@ -23,9 +23,10 @@ class Command(BaseCommand):
                 # Normalize column names (strip whitespace)
                 reader.fieldnames = [name.strip() for name in reader.fieldnames]
                 
-                # Support the exact headers from user's screenshot
+                # Support the exact headers from user's screenshot + School Code
                 headers = {
-                    'school': 'School Name',
+                    'school_name': 'School Name',
+                    'school_code': 'School Code',
                     'product': 'Product Name',
                     'size': 'Size',
                     'price': 'Price',
@@ -33,15 +34,15 @@ class Command(BaseCommand):
                 }
 
                 # Verify headers
-                missing = [v for k, v in headers.items() if v not in reader.fieldnames]
+                missing = [v for k, v in headers.items() if v not in reader.fieldnames and k != 'school_code']
                 if missing:
                     self.stdout.write(self.style.ERROR(f'CSV is missing columns: {", ".join(missing)}'))
-                    self.stdout.write(f'Found columns: {", ".join(reader.fieldnames)}')
                     return
 
                 for row in reader:
                     try:
-                        s_name = row[headers['school']].strip()
+                        s_name = row[headers['school_name']].strip()
+                        s_code = row.get(headers['school_code'], '').strip()
                         p_name = row[headers['product']].strip()
                         sz_val = row[headers['size']].strip()
                         pr_val = row[headers['price']].strip()
@@ -53,10 +54,12 @@ class Command(BaseCommand):
                         # 1. Determine School
                         target_school = None
                         if s_name and s_name.lower() != 'general':
-                            # Try to find school by name or code
-                            target_school = School.objects.filter(
-                                Q(name__iexact=s_name) | Q(code__iexact=s_name)
-                            ).first()
+                            # Try to find school by name first
+                            target_school = School.objects.filter(name__iexact=s_name).first()
+                            
+                            # If not found by name, try by code (if code provided)
+                            if not target_school and s_code:
+                                target_school = School.objects.filter(code__iexact=s_code).first()
                             
                             if not target_school:
                                 self.stdout.write(self.style.WARNING(f'  School "{s_name}" not found. Skipping row.'))
