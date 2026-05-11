@@ -3,6 +3,7 @@ from django.db.models import Sum, F, Q, Count
 from django.db.models.functions import TruncMonth, TruncDay
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
+from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.core.cache import cache
 from django.http import JsonResponse, HttpResponse
@@ -223,10 +224,23 @@ def inventory_browse(request):
     page = request.GET.get('page', 1)
     items = paginator.get_page(page)
 
+    # Build the product list for the filter dropdown — only products under this school
+    if school_id:
+        if school_id == 'general':
+            available_products = Product.objects.filter(
+                school_products__school__isnull=True
+            ).distinct().order_by('name')
+        else:
+            available_products = Product.objects.filter(
+                school_products__school_id=school_id
+            ).distinct().order_by('name')
+    else:
+        available_products = Product.objects.all().order_by('name')
+
     ctx = {
         'items': items,
         'schools': School.objects.all(),
-        'products': Product.objects.all(),
+        'products': available_products,
         'selected_school': school_id or '',
         'selected_product': product_id or '',
         'selected_status': status or '',

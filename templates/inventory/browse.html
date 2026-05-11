@@ -2,174 +2,210 @@
 {% block title %}View Stock — UniStock{% endblock %}
 {% block nav_inventory %}active{% endblock %}
 {% block page_title %}Inventory & Pricing Explorer{% endblock %}
-{% block page_sub %}Manage stock and pricing for specific schools or general items{% endblock %}
+{% block page_sub %}Select a school and product to view stock levels and manage pricing{% endblock %}
 {% block topbar_actions %}<a href="{% url 'stock_in' %}" class="btn btn-primary btn-sm">+ Add Stock</a>{% endblock %}
 
 {% block content %}
-<div style="display: flex; gap: 24px; align-items: flex-start;">
 
-  <!-- LEFT PANE: School / Category Selector -->
-  <div class="card" style="flex: 0 0 280px; padding: 0; overflow: hidden; position: sticky; top: 20px;">
-    <div style="padding: 16px; background: rgba(255,255,255,0.02); border-bottom: 1px solid var(--border);">
-      <h3 style="margin: 0; font-size: 0.9rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px;">Categories</h3>
+<!-- Filter Bar: Cascading Dropdowns -->
+<div class="card" style="padding: 20px 24px; margin-bottom: 24px; background: linear-gradient(135deg, var(--surface), var(--surface-2));">
+  <form method="GET" id="inventoryForm" style="display: flex; gap: 20px; align-items: flex-end; margin: 0; flex-wrap: wrap;">
+    
+    <!-- School Selector -->
+    <div style="flex: 1; min-width: 240px; max-width: 340px;">
+      <label style="display: block; font-size: 0.7rem; color: var(--text-muted); font-weight: 800; text-transform: uppercase; margin-bottom: 6px; letter-spacing: 1px;">School / Category</label>
+      <select name="school" id="inv-school" class="searchable" onchange="document.getElementById('inventoryForm').submit()">
+        <option value="">-- Select School --</option>
+        <option value="general" {% if selected_school == 'general' %}selected{% endif %}>🌍 General Items</option>
+        {% for s in schools %}
+          <option value="{{ s.id }}" {% if selected_school == s.id|stringformat:"s" %}selected{% endif %}>{{ s.code }} — {{ s.name }}</option>
+        {% endfor %}
+      </select>
     </div>
-    <div style="max-height: calc(100vh - 200px); overflow-y: auto;">
-      <a href="?school=general" class="sidebar-item {% if selected_school == 'general' %}active{% endif %}">
-        <div style="font-size: 1.2rem; margin-right: 12px;">🌍</div>
-        <div>
-          <div style="font-weight: 700; color: var(--gold);">General Items</div>
-          <div style="font-size: 0.75rem; color: var(--text-muted);">Independent stock</div>
-        </div>
-      </a>
-      
-      {% for s in schools %}
-      <a href="?school={{ s.id }}" class="sidebar-item {% if selected_school == s.id|stringformat:'s' %}active{% endif %}">
-        <div style="width: 32px; height: 32px; background: var(--surface-2); border-radius: 6px; display: flex; align-items: center; justify-content: center; margin-right: 12px; font-weight: 800; font-size: 0.75rem; color: var(--text-muted);">
-          {{ s.code }}
-        </div>
-        <div>
-          <div style="font-weight: 700; color: var(--text);">{{ s.name }}</div>
-        </div>
-      </a>
-      {% endfor %}
+
+    <!-- Product Selector (only visible after school is selected) -->
+    {% if selected_school %}
+    <div style="flex: 1; min-width: 200px; max-width: 300px;">
+      <label style="display: block; font-size: 0.7rem; color: var(--text-muted); font-weight: 800; text-transform: uppercase; margin-bottom: 6px; letter-spacing: 1px;">Product</label>
+      <select name="product" class="searchable" onchange="document.getElementById('inventoryForm').submit()">
+        <option value="">All Products</option>
+        {% for p in products %}<option value="{{ p.id }}" {% if selected_product == p.id|stringformat:"s" %}selected{% endif %}>{{ p.name }}</option>{% endfor %}
+      </select>
     </div>
-  </div>
 
-  <!-- RIGHT PANE: Inventory List -->
-  <div style="flex: 1;">
-    {% if not selected_school %}
-      <!-- Empty State -->
-      <div class="card" style="text-align: center; padding: 80px 20px;">
-        <div style="font-size: 4rem; opacity: 0.5; margin-bottom: 20px;">👈</div>
-        <h2 style="margin: 0 0 10px 0;">Select a Category</h2>
-        <p style="color: var(--text-muted); max-width: 400px; margin: 0 auto;">Choose "General Items" or a specific School from the left menu to view and update pricing for its products.</p>
-      </div>
-    {% else %}
-      
-      <!-- Sub-Filter Bar for the selected category -->
-      <div class="card" style="padding: 12px 16px; margin-bottom: 24px; display: flex; gap: 16px; align-items: center; background: rgba(11,24,48,0.6); backdrop-filter: blur(10px);">
-        <form method="GET" style="display: flex; gap: 16px; align-items: center; margin: 0; width: 100%;">
-          <input type="hidden" name="school" value="{{ selected_school }}">
-          
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase;">Product</span>
-            <select name="product" onchange="this.form.submit()" class="sub-select">
-              <option value="">All Products</option>
-              {% for p in products %}<option value="{{ p.id }}" {% if selected_product == p.id|stringformat:"s" %}selected{% endif %}>{{ p.name }}</option>{% endfor %}
-            </select>
-          </div>
-          
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase;">Status</span>
-            <select name="status" onchange="this.form.submit()" class="sub-select">
-              <option value="">All Status</option>
-              <option value="ok"  {% if selected_status == 'ok' %}selected{% endif %}>In Stock</option>
-              <option value="low" {% if selected_status == 'low' %}selected{% endif %}>Low Stock</option>
-              <option value="out" {% if selected_status == 'out' %}selected{% endif %}>Out of Stock</option>
-            </select>
-          </div>
-          
-          <div style="margin-left: auto;">
-            <a href="?school={{ selected_school }}" style="font-size: 0.8rem; color: var(--text-muted); text-decoration: none;">Clear Filters</a>
-          </div>
-        </form>
-      </div>
-
-      <!-- Grouped Inventory List -->
-      {% regroup items by product.name as grouped_items %}
-      
-      {% for group in grouped_items %}
-        <div class="card" style="padding: 0; margin-bottom: 24px; overflow: hidden;">
-          <!-- Product Header -->
-          <div style="background: rgba(255,255,255,0.03); padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center;">
-            <h2 style="margin: 0; font-size: 1.2rem; font-weight: 800; color: var(--text);">{{ group.grouper }}</h2>
-            <span style="margin-left: 12px; background: var(--surface-2); padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; color: var(--text-muted);">{{ group.list|length }} Sizes</span>
-          </div>
-          
-          <!-- Product Sizes Table -->
-          <table style="width: 100%; border-collapse: collapse;">
-            <thead>
-              <tr style="border-bottom: 1px solid var(--border);">
-                <th style="padding: 10px 20px; text-align: left; color: var(--text-muted); font-size: 0.75rem; font-weight: 600; text-transform: uppercase;">Size</th>
-                <th style="padding: 10px 20px; text-align: left; color: var(--text-muted); font-size: 0.75rem; font-weight: 600; text-transform: uppercase;">SKU</th>
-                <th style="padding: 10px 20px; text-align: center; color: var(--text-muted); font-size: 0.75rem; font-weight: 600; text-transform: uppercase;">Stock</th>
-                <th style="padding: 10px 20px; text-align: right; color: var(--text-muted); font-size: 0.75rem; font-weight: 600; text-transform: uppercase;">Price (₹)</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for item in group.list %}
-              <tr style="border-bottom: 1px solid var(--border); transition: background 0.1s;" onmouseover="this.style.background='rgba(255,255,255,0.02)'" onmouseout="this.style.background='transparent'">
-                <td style="padding: 12px 20px; font-weight: 700; color: var(--text); font-size: 0.95rem;">
-                  {{ item.size.size_value }}
-                </td>
-                <td style="padding: 12px 20px;">
-                  <span style="font-family: monospace; color: var(--text-dim); font-size: 0.8rem; background: rgba(0,0,0,0.2); padding: 2px 6px; border-radius: 4px;">{{ item.sku_code }}</span>
-                </td>
-                <td style="padding: 12px 20px; text-align: center;">
-                  <div style="display: inline-flex; align-items: center; gap: 8px;">
-                    <div style="width: 8px; height: 8px; border-radius: 50%; {% if item.stock_status == 'out' %}background: var(--red); box-shadow: 0 0 6px var(--red);{% elif item.stock_status == 'low' %}background: var(--gold); box-shadow: 0 0 6px var(--gold);{% else %}background: var(--emerald); box-shadow: 0 0 6px var(--emerald);{% endif %}"></div>
-                    <span style="font-weight: 800; font-size: 1rem; color: var(--text);">{{ item.stock }}</span>
-                  </div>
-                </td>
-                <td style="padding: 12px 20px; text-align: right;">
-                  <form method="POST" action="{% url 'inventory_update_price' item.pk %}" style="display: inline-flex; align-items: center; margin: 0; background: var(--surface-2); border-radius: 6px; padding: 2px 4px; border: 1px solid transparent; transition: border-color 0.2s;" onfocusin="this.style.borderColor='var(--blue)'" onfocusout="this.style.borderColor='transparent'">
-                    {% csrf_token %}
-                    <span style="color: var(--text-dim); font-size: 0.8rem; padding-left: 6px;">₹</span>
-                    <input type="number" name="price" value="{{ item.price|default_if_none:'' }}" step="0.01" style="background: transparent; border: none; color: var(--text); font-weight: 700; font-size: 0.95rem; width: 70px; text-align: right; outline: none; padding: 6px;" placeholder="0.00" onfocus="this.nextElementSibling.style.opacity=1" onblur="setTimeout(()=>this.nextElementSibling.style.opacity=0, 200)"/>
-                    <button type="submit" style="background: var(--blue); color: #fff; border: none; border-radius: 4px; font-size: 0.7rem; font-weight: 800; padding: 6px 10px; margin-left: 4px; cursor: pointer; opacity: 0; transition: opacity 0.2s, transform 0.1s;">Save</button>
-                  </form>
-                </td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-      {% empty %}
-        <div class="card" style="text-align: center; padding: 60px 20px;">
-          <h3 style="color: var(--text-muted);">No items found in this category.</h3>
-        </div>
-      {% endfor %}
-      
-      <!-- Only show pagination if needed (usually grouped items fit on one page due to limit=500) -->
-      {% if items.paginator.num_pages > 1 %}
-        {% include 'includes/pagination.html' %}
-      {% endif %}
-
+    <!-- Status Filter -->
+    <div style="flex: 0 0 160px;">
+      <label style="display: block; font-size: 0.7rem; color: var(--text-muted); font-weight: 800; text-transform: uppercase; margin-bottom: 6px; letter-spacing: 1px;">Stock Status</label>
+      <select name="status" class="searchable" onchange="document.getElementById('inventoryForm').submit()">
+        <option value="">All Status</option>
+        <option value="ok"  {% if selected_status == 'ok' %}selected{% endif %}>In Stock</option>
+        <option value="low" {% if selected_status == 'low' %}selected{% endif %}>Low Stock</option>
+        <option value="out" {% if selected_status == 'out' %}selected{% endif %}>Out of Stock</option>
+      </select>
+    </div>
     {% endif %}
-  </div>
+
+    <!-- Clear / Result Count -->
+    <div style="margin-left: auto; display: flex; align-items: center; gap: 16px;">
+      {% if selected_school %}
+        <span style="font-size: 0.8rem; color: var(--text-muted); font-weight: 600;">{{ total_count }} items</span>
+        <a href="{% url 'inventory_browse' %}" class="btn btn-outline btn-sm">Reset</a>
+      {% endif %}
+    </div>
+  </form>
 </div>
 
+{% if not selected_school %}
+  <!-- Empty State: No school selected -->
+  <div class="card" style="text-align: center; padding: 100px 20px; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+    <div style="width: 80px; height: 80px; background: linear-gradient(135deg, rgba(245,158,11,0.1), rgba(245,158,11,0.02)); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 24px; box-shadow: 0 0 30px rgba(245,158,11,0.05);">
+      <svg style="width: 40px; height: 40px; color: var(--gold);" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+    </div>
+    <h2 style="margin: 0 0 12px 0; font-size: 1.6rem; font-weight: 800; letter-spacing: -0.5px;">Select a School</h2>
+    <p style="color: var(--text-muted); max-width: 400px; margin: 0 auto; line-height: 1.6; font-size: 0.95rem;">Use the dropdown above to select "General Items" or a specific school. You can type to search through 250+ schools instantly.</p>
+  </div>
+
+{% elif not items %}
+  <!-- No results for current filters -->
+  <div class="card" style="text-align: center; padding: 60px 20px;">
+    <h3 style="color: var(--text-muted); margin: 0 0 8px 0;">No items found</h3>
+    <p style="color: var(--text-dim); font-size: 0.9rem; margin: 0;">Try adjusting your product or status filter.</p>
+  </div>
+
+{% else %}
+  <!-- Grouped Inventory Results -->
+  {% regroup items by product.name as grouped_items %}
+  
+  {% for group in grouped_items %}
+    <div class="card product-group" style="padding: 0; margin-bottom: 16px; overflow: hidden;">
+      <!-- Collapsible Product Header -->
+      <div class="product-header {% if forloop.first and not selected_product %}open{% endif %} {% if selected_product %}open{% endif %}" onclick="toggleGroup(this)">
+        <div style="display: flex; align-items: center; flex: 1; gap: 12px;">
+          <svg class="chevron-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+          <h2 style="margin: 0; font-size: 1.1rem; font-weight: 800; color: var(--text); letter-spacing: -0.3px;">{{ group.grouper }}</h2>
+          <span style="background: var(--surface-2); border: 1px solid var(--border); padding: 2px 10px; border-radius: 99px; font-size: 0.68rem; font-weight: 700; color: var(--text-muted); letter-spacing: 0.5px;">{{ group.list|length }} Sizes</span>
+        </div>
+        <div class="collapsed-summary">
+          <span style="font-size: 0.75rem; color: var(--text-muted);">Click to expand</span>
+        </div>
+      </div>
+      
+      <!-- Product Sizes Table (collapsible) -->
+      <div class="product-body {% if forloop.first and not selected_product %}open{% endif %} {% if selected_product %}open{% endif %}">
+        <table style="width: 100%; border-collapse: collapse;">
+          <thead>
+            <tr style="border-bottom: 1px solid var(--border);">
+              <th style="padding: 10px 20px; text-align: left; color: var(--text-muted); font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">Size</th>
+              <th style="padding: 10px 20px; text-align: left; color: var(--text-muted); font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">SKU</th>
+              <th style="padding: 10px 20px; text-align: center; color: var(--text-muted); font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">Stock</th>
+              <th style="padding: 10px 20px; text-align: right; color: var(--text-muted); font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">Price (₹)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in group.list %}
+            <tr style="border-bottom: 1px solid var(--border); transition: background 0.1s;" onmouseover="this.style.background='rgba(255,255,255,0.02)'" onmouseout="this.style.background='transparent'">
+              <td style="padding: 10px 20px; font-weight: 700; color: var(--text); font-size: 0.95rem;">
+                {{ item.size.size_value }}
+              </td>
+              <td style="padding: 10px 20px;">
+                <span style="font-family: 'Courier New', monospace; font-weight: 800; color: var(--text-dim); font-size: 0.8rem; background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.05); padding: 3px 8px; border-radius: 6px;">{{ item.sku_code }}</span>
+              </td>
+              <td style="padding: 10px 20px; text-align: center;">
+                <div style="display: inline-flex; align-items: center; gap: 8px;">
+                  <div style="width: 8px; height: 8px; border-radius: 50%; {% if item.stock_status == 'out' %}background: var(--red); box-shadow: 0 0 8px rgba(239,68,68,0.6);{% elif item.stock_status == 'low' %}background: var(--gold); box-shadow: 0 0 8px rgba(245,158,11,0.6);{% else %}background: var(--emerald); box-shadow: 0 0 8px rgba(16,185,129,0.6);{% endif %}"></div>
+                  <span style="font-weight: 800; font-size: 1.05rem; color: var(--text);">{{ item.stock }}</span>
+                  {% if item.stock_status == 'out' %}
+                    <span style="font-size: 0.65rem; font-weight: 800; color: var(--red); text-transform: uppercase; letter-spacing: 0.5px;">Out</span>
+                  {% elif item.stock_status == 'low' %}
+                    <span style="font-size: 0.65rem; font-weight: 800; color: var(--gold); text-transform: uppercase; letter-spacing: 0.5px;">Low</span>
+                  {% endif %}
+                </div>
+              </td>
+              <td style="padding: 10px 20px; text-align: right;">
+                <form method="POST" action="{% url 'inventory_update_price' item.pk %}" style="display: inline-flex; align-items: center; margin: 0; background: var(--surface-2); border-radius: 6px; padding: 2px 4px; border: 1px solid var(--border); transition: all 0.2s;" onfocusin="this.style.borderColor='var(--gold)'; this.style.boxShadow='0 0 0 2px rgba(245,158,11,0.1)'" onfocusout="this.style.borderColor='var(--border)'; this.style.boxShadow='none'">
+                  {% csrf_token %}
+                  <span style="color: var(--text-dim); font-size: 0.8rem; padding-left: 8px;">₹</span>
+                  <input type="number" name="price" value="{{ item.price|default_if_none:'' }}" step="0.01" style="background: transparent; border: none; color: var(--text); font-weight: 800; font-size: 0.95rem; width: 70px; text-align: right; outline: none; padding: 6px;" placeholder="0.00" onfocus="this.nextElementSibling.style.opacity=1" onblur="setTimeout(()=>this.nextElementSibling.style.opacity=0, 200)"/>
+                  <button type="submit" style="background: var(--gold); color: #000; border: none; border-radius: 4px; font-size: 0.7rem; font-weight: 800; padding: 6px 10px; margin-left: 4px; cursor: pointer; opacity: 0; transition: opacity 0.2s, transform 0.1s;">Save</button>
+                  <svg style="width: 12px; height: 12px; color: var(--text-muted); margin-left: 4px; pointer-events: none;" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  {% empty %}
+    <div class="card" style="text-align: center; padding: 60px 20px;">
+      <h3 style="color: var(--text-muted); margin: 0 0 8px 0;">No items found</h3>
+      <p style="color: var(--text-dim); font-size: 0.9rem; margin: 0;">Try changing the product or status filter above.</p>
+    </div>
+  {% endfor %}
+  
+  {% if items.paginator.num_pages > 1 %}
+    {% include 'includes/pagination.html' %}
+  {% endif %}
+
+{% endif %}
+
 <style>
-/* Sidebar Category Links */
-.sidebar-item {
+/* Collapsible Product Groups */
+.product-header {
+  background: linear-gradient(90deg, rgba(245,158,11,0.05), transparent);
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border);
+  border-left: 3px solid var(--gold);
   display: flex;
   align-items: center;
-  padding: 14px 16px;
-  text-decoration: none;
-  border-bottom: 1px solid rgba(255,255,255,0.02);
-  transition: background 0.1s, padding-left 0.2s;
+  cursor: pointer;
+  transition: background 0.15s;
+  user-select: none;
 }
-.sidebar-item:hover {
-  background: rgba(255,255,255,0.03);
-  padding-left: 20px;
+.product-header:hover {
+  background: linear-gradient(90deg, rgba(245,158,11,0.09), rgba(255,255,255,0.02));
 }
-.sidebar-item.active {
-  background: rgba(59,130,246,0.10);
-  border-left: 3px solid var(--gold);
-  padding-left: 20px;
-  background: linear-gradient(90deg, rgba(245,158,11,0.08), transparent);
+.product-header .chevron-icon {
+  width: 18px; height: 18px;
+  color: var(--text-muted);
+  transition: transform 0.25s ease;
+  flex-shrink: 0;
+}
+.product-header.open .chevron-icon {
+  transform: rotate(90deg);
+  color: var(--gold);
+}
+.product-header .collapsed-summary {
+  transition: opacity 0.2s;
+}
+.product-header.open .collapsed-summary {
+  opacity: 0;
+  pointer-events: none;
 }
 
-/* Sub-select styling */
-.sub-select {
-  background: transparent;
-  border: none;
-  color: var(--text);
-  font-size: 0.85rem;
-  font-weight: 700;
-  outline: none;
-  cursor: pointer;
+.product-body {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.35s ease;
 }
-.sub-select option { background: var(--bg); }
+.product-body.open {
+  max-height: 5000px;
+}
 </style>
+
+<script>
+// Toggle collapsible product groups
+function toggleGroup(header) {
+  const body = header.nextElementSibling;
+  const isOpen = header.classList.contains('open');
+  
+  if (isOpen) {
+    header.classList.remove('open');
+    body.classList.remove('open');
+  } else {
+    header.classList.add('open');
+    body.classList.add('open');
+  }
+}
+</script>
 {% endblock %}
