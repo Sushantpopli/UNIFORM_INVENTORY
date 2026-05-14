@@ -21,3 +21,7 @@ env/
 # IDEs
 .vscode/
 .idea/
+
+# Custom
+scratch/
+*.csv

@@ -11,6 +11,7 @@ class StockTransaction(models.Model):
         ('EXCHANGE_IN', 'Exchange — Returned'),
         ('EXCHANGE_OUT', 'Exchange — Given'),
         ('BILL_SALE', 'Bill Sale'),
+        ('ADJUSTMENT', 'Manual Adjustment'),
     ]
 
     school_product = models.ForeignKey(

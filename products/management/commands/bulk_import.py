@@ -1,101 +1,265 @@
 import csv
+import re
 from decimal import Decimal, InvalidOperation
+
 from django.core.management.base import BaseCommand
+from django.db import transaction as db_transaction
+
 from products.models import Product
-from sizes.models import Size
+from schools.import_matching import FUZZY_REVIEW_THRESHOLD, find_name_match, normalize_name
 from schools.models import School, SchoolProduct
-from django.db.models import Q
+from sizes.models import Size
+
+
+GENERAL_SCHOOL_NAMES = {'general item', 'general items', 'general', 'none'}
+HEADERS = {
+    'school_name': 'School Name',
+    'school_code': 'School Code',
+    'product': 'Product Name',
+    'size': 'Size',
+    'price': 'Price',
+    'stock': 'Initial Stock',
+}
+
+
+def parse_price(value, row_number, errors):
+    value = (value or '').strip()
+    if not value:
+        errors.append(f'Row {row_number}: Price is required.')
+        return None
+
+    cleaned = value.replace(',', '')
+    try:
+        price = Decimal(cleaned)
+    except (InvalidOperation, ValueError):
+        errors.append(f'Row {row_number}: Price "{value}" is invalid. Use numbers only, like 450 or 450.00.')
+        return None
+
+    if price < 0:
+        errors.append(f'Row {row_number}: Price cannot be negative.')
+        return None
+    return price
+
+
+def parse_stock(value, row_number, errors):
+    value = (value or '').strip()
+    if not value:
+        errors.append(f'Row {row_number}: Initial Stock is required. Use 0 if there is no stock.')
+        return None
+
+    cleaned = value.replace(',', '')
+    if not re.fullmatch(r'-?\d+', cleaned):
+        errors.append(f'Row {row_number}: Initial Stock "{value}" is invalid. Use a whole number only.')
+        return None
+
+    stock = int(cleaned)
+    if stock < 0:
+        errors.append(f'Row {row_number}: Initial Stock cannot be negative.')
+        return None
+    return stock
+
 
 class Command(BaseCommand):
-    help = 'Bulk imports inventory from CSV (School Name, Product Name, Size, Price, Initial Stock)'
+    help = 'Strictly imports inventory from CSV after validating every row first'
 
     def add_arguments(self, parser):
         parser.add_argument('csv_file', type=str, help='Path to the CSV file')
 
     def handle(self, *args, **options):
         csv_file = options['csv_file']
-        count = 0
-        
-        try:
-            with open(csv_file, 'r', encoding='utf-8-sig') as f: # Use sig to handle Byte Order Mark from Excel
-                reader = csv.DictReader(f)
-                
-                # Normalize column names (strip whitespace)
-                reader.fieldnames = [name.strip() for name in reader.fieldnames]
-                
-                # Support the exact headers from user's screenshot + School Code
-                headers = {
-                    'school_name': 'School Name',
-                    'school_code': 'School Code',
-                    'product': 'Product Name',
-                    'size': 'Size',
-                    'price': 'Price',
-                    'stock': 'Initial Stock'
-                }
 
-                # Verify headers
-                missing = [v for k, v in headers.items() if v not in reader.fieldnames and k != 'school_code']
-                if missing:
-                    self.stdout.write(self.style.ERROR(f'CSV is missing columns: {", ".join(missing)}'))
+        try:
+            with open(csv_file, 'r', encoding='utf-8-sig', newline='') as f:
+                reader = csv.DictReader(f)
+
+                if reader.fieldnames:
+                    reader.fieldnames = [name.strip() for name in reader.fieldnames]
+                else:
+                    self.stdout.write(self.style.ERROR('Import failed: the CSV file is empty or has no header row.'))
                     return
 
-                for row in reader:
-                    try:
-                        s_name = row[headers['school_name']].strip()
-                        s_code = row.get(headers['school_code'], '').strip()
-                        p_name = row[headers['product']].strip()
-                        sz_val = row[headers['size']].strip()
-                        pr_val = row[headers['price']].strip()
-                        st_val = row[headers['stock']].strip()
+                has_name = HEADERS['school_name'] in reader.fieldnames
+                has_code = HEADERS['school_code'] in reader.fieldnames
+                if not has_name and not has_code:
+                    self.stdout.write(self.style.ERROR(
+                        f'Import failed: CSV must contain either "{HEADERS["school_name"]}" or "{HEADERS["school_code"]}".'
+                    ))
+                    return
 
-                        if not p_name or not sz_val:
-                            continue
+                required = ['product', 'size', 'price', 'stock']
+                missing = [HEADERS[key] for key in required if HEADERS[key] not in reader.fieldnames]
+                if missing:
+                    self.stdout.write(self.style.ERROR(
+                        f'Import failed: missing required column(s): {", ".join(missing)}.'
+                    ))
+                    return
 
-                        # 1. Determine School
-                        target_school = None
-                        if s_name and s_name.lower() != 'general':
-                            # Try to find school by name first
-                            target_school = School.objects.filter(name__iexact=s_name).first()
-                            
-                            # If not found by name, try by code (if code provided)
-                            if not target_school and s_code:
-                                target_school = School.objects.filter(code__iexact=s_code).first()
-                            
-                            if not target_school:
-                                self.stdout.write(self.style.WARNING(f'  School "{s_name}" not found. Skipping row.'))
+                planned_rows = []
+                corrections = []
+                errors = []
+                seen_keys = {}
+
+                for row_number, row in enumerate(reader, start=2):
+                    school_name = row.get(HEADERS['school_name'], '').strip()
+                    school_code = row.get(HEADERS['school_code'], '').strip()
+                    product_name = row.get(HEADERS['product'], '').strip()
+                    size_value = row.get(HEADERS['size'], '').strip()
+                    price_value = row.get(HEADERS['price'], '').strip()
+                    stock_value = row.get(HEADERS['stock'], '').strip()
+
+                    if not any([school_name, school_code, product_name, size_value, price_value, stock_value]):
+                        continue
+
+                    if not product_name:
+                        errors.append(f'Row {row_number}: Product Name is required.')
+                    if not size_value:
+                        errors.append(f'Row {row_number}: Size is required.')
+
+                    price = parse_price(price_value, row_number, errors)
+                    stock = parse_stock(stock_value, row_number, errors)
+
+                    if not product_name or not size_value or price is None or stock is None:
+                        continue
+
+                    school = None
+                    new_school_name = ''
+                    new_school_code = ''
+
+                    if not school_name and not school_code:
+                        school_key = 'general'
+                    elif school_name.lower() in GENERAL_SCHOOL_NAMES or school_code.lower() == 'general':
+                        school_key = 'general'
+                    else:
+                        if school_code:
+                            school = School.objects.filter(code__iexact=school_code).first()
+                            if not school and not school_name:
+                                errors.append(f'Row {row_number}: school code "{school_code}" was not found.')
                                 continue
 
-                        # 2. Get or Create Product
-                        product, _ = Product.objects.get_or_create(name=p_name)
-                        
-                        # 3. Get or Create Size
-                        size, _ = Size.objects.get_or_create(product=product, size_value=sz_val)
-                        
-                        # 4. Create or Update Link
-                        defaults = {
-                            'stock': int(float(st_val)) if st_val else 0,
-                            'price': Decimal(pr_val) if pr_val else None,
-                            'low_stock_threshold': 5
-                        }
-                        
-                        sp, created = SchoolProduct.objects.update_or_create(
-                            school=target_school,
+                        if not school and school_name:
+                            school, corrected, matched_name, ratio = find_name_match(School, school_name)
+                            if school and corrected:
+                                corrections.append(f'Row {row_number}: school "{school_name}" matched to "{matched_name}".')
+                            elif not school and matched_name and ratio >= FUZZY_REVIEW_THRESHOLD:
+                                errors.append(
+                                    f'Row {row_number}: school "{school_name}" looks close to "{matched_name}". Fix the spelling before importing.'
+                                )
+                                continue
+                            elif not school:
+                                new_school_name = school_name
+                                new_school_code = school_code or school_name[:5].upper()
+
+                        school_key = f'id:{school.pk}' if school else f'new:{normalize_name(new_school_name)}'
+
+                    product, product_corrected, matched_product, product_ratio = find_name_match(Product, product_name)
+                    if product and product_corrected:
+                        corrections.append(f'Row {row_number}: product "{product_name}" matched to "{matched_product}".')
+                    elif not product and matched_product and product_ratio >= FUZZY_REVIEW_THRESHOLD:
+                        errors.append(
+                            f'Row {row_number}: product "{product_name}" looks close to "{matched_product}". Fix the spelling or create the new product manually first.'
+                        )
+                        continue
+
+                    product_key = f'id:{product.pk}' if product else f'new:{normalize_name(product_name)}'
+                    duplicate_key = (school_key, product_key, normalize_name(size_value))
+                    if duplicate_key in seen_keys:
+                        errors.append(
+                            f'Row {row_number}: duplicate of row {seen_keys[duplicate_key]} for the same school, product, and size.'
+                        )
+                        continue
+                    seen_keys[duplicate_key] = row_number
+
+                    planned_rows.append({
+                        'school': school,
+                        'school_name': new_school_name,
+                        'school_code': new_school_code,
+                        'product': product,
+                        'product_name': product_name,
+                        'size_value': size_value,
+                        'price': price,
+                        'stock': stock,
+                    })
+
+                if not planned_rows and not errors:
+                    self.stdout.write(self.style.ERROR('Import failed: no usable data rows were found.'))
+                    return
+
+                if errors:
+                    self.stdout.write(self.style.ERROR(
+                        f'Import cancelled: fix {len(errors)} problem(s) in the CSV and run again. No data was changed.'
+                    ))
+                    for error in errors:
+                        self.stdout.write(self.style.ERROR(f'  {error}'))
+                    return
+
+                created_count = 0
+                updated_count = 0
+
+                with db_transaction.atomic():
+                    school_cache = {}
+                    product_cache = {}
+                    size_cache = {}
+
+                    for row in planned_rows:
+                        school = row['school']
+                        if not school and row['school_name']:
+                            school_key = normalize_name(row['school_name'])
+                            if school_key not in school_cache:
+                                school_cache[school_key] = School.objects.create(
+                                    name=row['school_name'],
+                                    code=row['school_code'],
+                                )
+                            school = school_cache[school_key]
+
+                        product = row['product']
+                        if not product:
+                            product_key = normalize_name(row['product_name'])
+                            if product_key not in product_cache:
+                                product_cache[product_key] = Product.objects.create(name=row['product_name'])
+                            product = product_cache[product_key]
+
+                        size_key = (product.pk, row['size_value'].lower())
+                        if size_key not in size_cache:
+                            size, _ = Size.objects.get_or_create(
+                                product=product,
+                                size_value__iexact=row['size_value'],
+                                defaults={'size_value': row['size_value']},
+                            )
+                            size_cache[size_key] = size
+                        size = size_cache[size_key]
+
+                        sp, created = SchoolProduct.objects.get_or_create(
+                            school=school,
                             product=product,
                             size=size,
-                            defaults=defaults
+                            defaults={'price': row['price'], 'stock': row['stock']},
                         )
-                        
-                        loc = target_school.name if target_school else "General Items"
-                        action = "Created" if created else "Updated"
-                        self.stdout.write(f'  [{loc}] {action}: {p_name} ({sz_val})')
-                        count += 1
-                        
-                    except (InvalidOperation, ValueError, TypeError) as e:
-                        self.stdout.write(self.style.WARNING(f'  Skipping row: {row} - Error: {e}'))
-                        continue
-            
-            self.stdout.write(self.style.SUCCESS(f'\nSuccessfully processed {count} entries!'))
+
+                        if created:
+                            created_count += 1
+                        else:
+                            needs_update = False
+                            if sp.price != row['price']:
+                                sp.price = row['price']
+                                needs_update = True
+                            if sp.stock != row['stock']:
+                                sp.stock = row['stock']
+                                needs_update = True
+                            if needs_update:
+                                sp.save()
+                                updated_count += 1
+
+                self.stdout.write(self.style.SUCCESS(
+                    f'Import complete. Created {created_count} new item(s). Updated {updated_count} existing item(s).'
+                ))
+                for correction in corrections:
+                    self.stdout.write(self.style.WARNING(f'  {correction}'))
+
         except FileNotFoundError:
             self.stdout.write(self.style.ERROR(f'File {csv_file} not found.'))
+        except UnicodeDecodeError:
+            self.stdout.write(self.style.ERROR(
+                'Import failed: this does not look like a valid CSV file. Save the Excel sheet as CSV UTF-8 and run again.'
+            ))
         except Exception as e:
             self.stdout.write(self.style.ERROR(f'An error occurred: {e}'))

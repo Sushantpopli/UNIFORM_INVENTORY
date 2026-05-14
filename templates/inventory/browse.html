@@ -2,7 +2,7 @@
 {% block title %}View Stock — UniStock{% endblock %}
 {% block nav_inventory %}active{% endblock %}
 {% block page_title %}Inventory & Pricing Explorer{% endblock %}
-{% block page_sub %}Select a school and product to view stock levels and manage pricing{% endblock %}
+{% block page_sub %}Select a school and product to view stock levels, stock corrections, and pricing{% endblock %}
 {% block topbar_actions %}
   <a href="{% url 'download_inventory_template' %}" class="btn btn-outline btn-sm" style="margin-right: 8px;">Download Template</a>
   <a href="{% url 'stock_in' %}" class="btn btn-primary btn-sm">+ Add Stock</a>
@@ -58,27 +58,16 @@
   </form>
 </div>
 
-{% if not selected_school %}
-  <!-- Empty State: No school selected -->
-  <div class="card" style="text-align: center; padding: 100px 20px; display: flex; flex-direction: column; align-items: center; justify-content: center;">
-    <div style="width: 80px; height: 80px; background: linear-gradient(135deg, rgba(245,158,11,0.1), rgba(245,158,11,0.02)); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 24px; box-shadow: 0 0 30px rgba(245,158,11,0.05);">
-      <svg style="width: 40px; height: 40px; color: var(--gold);" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+{% if items %}
+  {% if not selected_school %}
+    <div style="background: rgba(245,158,11,0.05); border-left: 4px solid var(--gold); padding: 12px 20px; border-radius: 8px; margin-bottom: 24px; display: flex; align-items: center; gap: 12px;">
+      <svg style="width: 20px; height: 20px; color: var(--gold);" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+      <span style="font-size: 0.9rem; font-weight: 600; color: var(--gold);">Global Warehouse View: Showing all items currently in stock across all schools.</span>
     </div>
-    <h2 style="margin: 0 0 12px 0; font-size: 1.6rem; font-weight: 800; letter-spacing: -0.5px;">Select a School</h2>
-    <p style="color: var(--text-muted); max-width: 400px; margin: 0 auto; line-height: 1.6; font-size: 0.95rem;">Use the dropdown above to select "General Items" or a specific school. You can type to search through 250+ schools instantly.</p>
-  </div>
+  {% endif %}
 
-{% elif not items %}
-  <!-- No results for current filters -->
-  <div class="card" style="text-align: center; padding: 60px 20px;">
-    <h3 style="color: var(--text-muted); margin: 0 0 8px 0;">No items found</h3>
-    <p style="color: var(--text-dim); font-size: 0.9rem; margin: 0;">Try adjusting your product or status filter.</p>
-  </div>
-
-{% else %}
   <!-- Grouped Inventory Results -->
   {% regroup items by product.name as grouped_items %}
-  
   {% for group in grouped_items %}
     <div class="card product-group" style="padding: 0; margin-bottom: 16px; overflow: hidden;">
       <!-- Collapsible Product Header -->
@@ -118,15 +107,18 @@
                 <span style="font-family: 'Courier New', monospace; font-weight: 800; color: var(--text-dim); font-size: 0.8rem; background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.05); padding: 3px 8px; border-radius: 6px;">{{ item.sku_code }}</span>
               </td>
               <td style="padding: 10px 20px; text-align: center;">
-                <div style="display: inline-flex; align-items: center; gap: 8px;">
+                <form method="POST" action="{% url 'inventory_update_stock' item.pk %}" style="display: inline-flex; align-items: center; gap: 8px; margin: 0; background: var(--surface-2); border-radius: 6px; padding: 2px 4px; border: 1px solid var(--border); transition: all 0.2s;" onfocusin="this.style.borderColor='var(--gold)'; this.style.boxShadow='0 0 0 2px rgba(245,158,11,0.1)'" onfocusout="this.style.borderColor='var(--border)'; this.style.boxShadow='none'">
+                  {% csrf_token %}
                   <div style="width: 8px; height: 8px; border-radius: 50%; {% if item.stock_status == 'out' %}background: var(--red); box-shadow: 0 0 8px rgba(239,68,68,0.6);{% elif item.stock_status == 'low' %}background: var(--gold); box-shadow: 0 0 8px rgba(245,158,11,0.6);{% else %}background: var(--emerald); box-shadow: 0 0 8px rgba(16,185,129,0.6);{% endif %}"></div>
-                  <span style="font-weight: 800; font-size: 1.05rem; color: var(--text);">{{ item.stock }}</span>
+                  <input type="number" name="stock" value="{{ item.stock }}" min="0" step="1" style="background: transparent; border: none; color: var(--text); font-weight: 800; font-size: 1.05rem; width: 62px; text-align: center; outline: none; padding: 6px;" onfocus="this.parentElement.querySelector('.stock-save').style.opacity=1" onblur="setTimeout(()=>this.parentElement.querySelector('.stock-save').style.opacity=0, 200)"/>
                   {% if item.stock_status == 'out' %}
                     <span style="font-size: 0.65rem; font-weight: 800; color: var(--red); text-transform: uppercase; letter-spacing: 0.5px;">Out</span>
                   {% elif item.stock_status == 'low' %}
                     <span style="font-size: 0.65rem; font-weight: 800; color: var(--gold); text-transform: uppercase; letter-spacing: 0.5px;">Low</span>
                   {% endif %}
-                </div>
+                  <button type="submit" class="stock-save" style="background: var(--gold); color: #000; border: none; border-radius: 4px; font-size: 0.7rem; font-weight: 800; padding: 6px 10px; cursor: pointer; opacity: 0; transition: opacity 0.2s, transform 0.1s;">Save</button>
+                  <svg style="width: 12px; height: 12px; color: var(--text-muted); pointer-events: none;" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                </form>
               </td>
               <td style="padding: 10px 20px; text-align: right;">
                 <form method="POST" action="{% url 'inventory_update_price' item.pk %}" style="display: inline-flex; align-items: center; margin: 0; background: var(--surface-2); border-radius: 6px; padding: 2px 4px; border: 1px solid var(--border); transition: all 0.2s;" onfocusin="this.style.borderColor='var(--gold)'; this.style.boxShadow='0 0 0 2px rgba(245,158,11,0.1)'" onfocusout="this.style.borderColor='var(--border)'; this.style.boxShadow='none'">
@@ -154,6 +146,22 @@
     {% include 'includes/pagination.html' %}
   {% endif %}
 
+{% elif not selected_school %}
+  <!-- Empty State: No school selected and no stock yet -->
+  <div class="card" style="text-align: center; padding: 100px 20px; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+    <div style="width: 80px; height: 80px; background: linear-gradient(135deg, rgba(245,158,11,0.1), rgba(245,158,11,0.02)); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 24px; box-shadow: 0 0 30px rgba(245,158,11,0.05);">
+      <svg style="width: 40px; height: 40px; color: var(--gold);" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+    </div>
+    <h2 style="margin: 0 0 12px 0; font-size: 1.6rem; font-weight: 800; letter-spacing: -0.5px;">Welcome to UniStock</h2>
+    <p style="color: var(--text-muted); max-width: 400px; margin: 0 auto; line-height: 1.6; font-size: 0.95rem;">Select a school above to manage its stock, or use the "Download Template" button to bulk upload your inventory.</p>
+  </div>
+
+{% else %}
+  <!-- No results for current filters -->
+  <div class="card" style="text-align: center; padding: 60px 20px;">
+    <h3 style="color: var(--text-muted); margin: 0 0 8px 0;">No items found</h3>
+    <p style="color: var(--text-dim); font-size: 0.9rem; margin: 0;">Try adjusting your product or status filter.</p>
+  </div>
 {% endif %}
 
 <style>

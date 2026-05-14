@@ -11,8 +11,11 @@ from django.utils import timezone
 from datetime import timedelta
 import json
 import csv
+import re
+from decimal import Decimal, InvalidOperation
 
 from schools.models import School, SchoolProduct
+from schools.import_matching import FUZZY_REVIEW_THRESHOLD, find_name_match, normalize_name
 from products.models import Product
 from sizes.models import Size
 from transactions.models import StockTransaction, ManufacturingOrder, Bill, BillItem
@@ -206,19 +209,23 @@ def inventory_browse(request):
     product_id = request.GET.get('product')
     status = request.GET.get('status')
 
-    if school_id:
-        if school_id == 'general':
-            qs = qs.filter(school__isnull=True)
-        else:
-            qs = qs.filter(school_id=school_id)
-    if product_id:
-        qs = qs.filter(product_id=product_id)
-    if status == 'low':
-        qs = qs.filter(stock__lte=F('low_stock_threshold'), stock__gt=0)
-    elif status == 'out':
-        qs = qs.filter(stock=0)
-    elif status == 'ok':
-        qs = qs.filter(stock__gt=F('low_stock_threshold'))
+    # If no filters are applied, show everything that has stock > 0 (Warehouse View)
+    if not school_id and not product_id and not status:
+        qs = qs.filter(stock__gt=0).order_by('product__name', 'school__name')
+    else:
+        if school_id:
+            if school_id == 'general':
+                qs = qs.filter(school__isnull=True)
+            else:
+                qs = qs.filter(school_id=school_id)
+        if product_id:
+            qs = qs.filter(product_id=product_id)
+        if status == 'low':
+            qs = qs.filter(stock__lte=F('low_stock_threshold'), stock__gt=0)
+        elif status == 'out':
+            qs = qs.filter(stock=0)
+        elif status == 'ok':
+            qs = qs.filter(stock__gt=F('low_stock_threshold'))
 
     paginator = Paginator(qs, 100)
     page = request.GET.get('page', 1)
@@ -287,6 +294,35 @@ def inventory_update_price(request, pk):
             messages.success(request, f'Price removed for {item.product.name} ({item.size.size_value}).')
             
     # Redirect back to where they came from
+    referer = request.META.get('HTTP_REFERER', 'inventory_browse')
+    return redirect(referer)
+
+
+def inventory_update_stock(request, pk):
+    if request.method == 'POST':
+        item = get_object_or_404(SchoolProduct, pk=pk)
+        stock_val = request.POST.get('stock', '').strip()
+
+        if not re.fullmatch(r'\d+', stock_val):
+            messages.error(request, 'Invalid stock. Enter a whole number, 0 or above.')
+        else:
+            new_stock = int(stock_val)
+            with db_transaction.atomic():
+                item = SchoolProduct.objects.select_for_update().select_related('product', 'size').get(pk=pk)
+                old_stock = item.stock
+                if old_stock != new_stock:
+                    item.stock = new_stock
+                    item.save(update_fields=['stock'])
+                    StockTransaction.objects.create(
+                        school_product=item,
+                        transaction_type='ADJUSTMENT',
+                        quantity=new_stock - old_stock,
+                        note=f'Manual stock correction: {old_stock} -> {new_stock}',
+                    )
+                    messages.success(request, f'Stock updated for {item.product.name} ({item.size.size_value}): {old_stock} -> {new_stock}.')
+                else:
+                    messages.warning(request, 'Stock was already set to that value.')
+
     referer = request.META.get('HTTP_REFERER', 'inventory_browse')
     return redirect(referer)
 
@@ -614,8 +650,9 @@ def bill_create(request):
 
         # Still no school → all items are general. Use a sentinel "General" school or error.
         if school is None:
-            messages.error(request, 'Could not determine school. Please select a school or add at least one school-specific item.')
-            return redirect('bill_create')
+            school = School.objects.filter(name__iexact='General Items').first()
+            if school is None:
+                school = School.objects.create(name='General Items', code='GEN')
 
         with db_transaction.atomic():
             bill = Bill.objects.create(
@@ -1038,11 +1075,48 @@ def setup_download_template(request):
     return response
 
 
+IMPORT_COLUMNS = ['school name', 'product name', 'size', 'price', 'initial stock']
+GENERAL_SCHOOL_NAMES = {'general item', 'general items', 'general', 'none'}
+
+
+def _parse_import_price(value, row_number, errors):
+    value = (value or '').strip()
+    if not value:
+        errors.append(f'Row {row_number}: Price is required.')
+        return None
+    cleaned = value.replace(',', '')
+    try:
+        price = Decimal(cleaned)
+    except (InvalidOperation, ValueError):
+        errors.append(f'Row {row_number}: Price "{value}" is invalid. Use numbers only, like 450 or 450.00.')
+        return None
+    if price < 0:
+        errors.append(f'Row {row_number}: Price cannot be negative.')
+        return None
+    return price
+
+
+def _parse_import_stock(value, row_number, errors):
+    value = (value or '').strip()
+    if not value:
+        errors.append(f'Row {row_number}: Initial Stock is required. Use 0 if there is no stock.')
+        return None
+    cleaned = value.replace(',', '')
+    if not re.fullmatch(r'-?\d+', cleaned):
+        errors.append(f'Row {row_number}: Initial Stock "{value}" is invalid. Use a whole number only.')
+        return None
+    stock = int(cleaned)
+    if stock < 0:
+        errors.append(f'Row {row_number}: Initial Stock cannot be negative.')
+        return None
+    return stock
+
+
 def setup_import_data(request):
     if request.method == 'POST' and request.FILES.get('csv_file'):
         csv_file = request.FILES['csv_file']
-        if not csv_file.name.endswith('.csv'):
-            messages.error(request, 'Please upload a valid CSV file.')
+        if not csv_file.name.lower().endswith('.csv'):
+            messages.error(request, 'Please upload a CSV file. Excel .xlsx files must be saved/exported as CSV first.')
             return redirect('setup_home')
 
         try:
@@ -1052,69 +1126,162 @@ def setup_import_data(request):
             # Normalize headers (lowercase, strip spaces) to be forgiving
             if reader.fieldnames:
                 reader.fieldnames = [str(x).strip().lower() for x in reader.fieldnames]
+            else:
+                messages.error(request, 'Import failed: the CSV file is empty or has no header row.')
+                return redirect('setup_home')
+
+            missing_columns = [column for column in IMPORT_COLUMNS if column not in reader.fieldnames]
+            if missing_columns:
+                messages.error(request, f'Import failed: missing required column(s): {", ".join(missing_columns)}.')
+                return redirect('setup_home')
 
             created_count = 0
             updated_count = 0
+            corrections = []
+            validation_errors = []
+            planned_rows = []
+            seen_keys = {}
+
+            for row_number, row in enumerate(reader, start=2):
+                school_name = row.get('school name', '').strip()
+                product_name = row.get('product name', '').strip()
+                size_val = row.get('size', '').strip()
+                price_val = row.get('price', '').strip()
+                stock_val = row.get('initial stock', '').strip()
+
+                if not any([school_name, product_name, size_val, price_val, stock_val]):
+                    continue
+
+                if not product_name:
+                    validation_errors.append(f'Row {row_number}: Product Name is required.')
+                if not size_val:
+                    validation_errors.append(f'Row {row_number}: Size is required.')
+
+                price = _parse_import_price(price_val, row_number, validation_errors)
+                stock = _parse_import_stock(stock_val, row_number, validation_errors)
+
+                if not product_name or not size_val or price is None or stock is None:
+                    continue
+
+                school = None
+                new_school_name = ''
+                if not school_name or school_name.lower() in GENERAL_SCHOOL_NAMES:
+                    school_key = 'general'
+                else:
+                    school, corrected, matched_name, ratio = find_name_match(School, school_name)
+                    if school and corrected:
+                        corrections.append(f'Row {row_number}: school "{school_name}" matched to "{matched_name}".')
+                    elif not school and matched_name and ratio >= FUZZY_REVIEW_THRESHOLD:
+                        validation_errors.append(
+                            f'Row {row_number}: school "{school_name}" looks close to "{matched_name}". Fix the spelling before importing.'
+                        )
+                        continue
+                    elif not school:
+                        new_school_name = school_name
+                    school_key = f'id:{school.pk}' if school else f'new:{normalize_name(new_school_name)}'
+
+                product, product_corrected, matched_product, product_ratio = find_name_match(Product, product_name)
+                if product and product_corrected:
+                    corrections.append(f'Row {row_number}: product "{product_name}" matched to "{matched_product}".')
+                elif not product and matched_product and product_ratio >= FUZZY_REVIEW_THRESHOLD:
+                    validation_errors.append(
+                        f'Row {row_number}: product "{product_name}" looks close to "{matched_product}". Fix the spelling or create the new product manually first.'
+                    )
+                    continue
+
+                product_key = f'id:{product.pk}' if product else f'new:{normalize_name(product_name)}'
+                size_key = normalize_name(size_val)
+                duplicate_key = (school_key, product_key, size_key)
+                if duplicate_key in seen_keys:
+                    validation_errors.append(
+                        f'Row {row_number}: duplicate of row {seen_keys[duplicate_key]} for the same school, product, and size.'
+                    )
+                    continue
+                seen_keys[duplicate_key] = row_number
+
+                planned_rows.append({
+                    'school': school,
+                    'school_name': new_school_name,
+                    'product': product,
+                    'product_name': product_name,
+                    'size_value': size_val,
+                    'price': price,
+                    'stock': stock,
+                })
+
+            if not planned_rows and not validation_errors:
+                messages.error(request, 'Import failed: no usable data rows were found.')
+                return redirect('setup_home')
+
+            if validation_errors:
+                messages.error(request, f'Import cancelled: fix {len(validation_errors)} problem(s) in the CSV and upload again. No data was changed.')
+                for error in validation_errors[:12]:
+                    messages.error(request, error)
+                if len(validation_errors) > 12:
+                    messages.error(request, f'{len(validation_errors) - 12} more problem(s) were found.')
+                return redirect('setup_home')
 
             with db_transaction.atomic():
-                for row in reader:
-                    school_name = row.get('school name', '').strip()
-                    product_name = row.get('product name', '').strip()
-                    size_val = row.get('size', '').strip()
-                    price_val = row.get('price', '').strip()
-                    stock_val = row.get('initial stock', '').strip()
+                school_cache = {}
+                product_cache = {}
+                size_cache = {}
 
-                    if not product_name or not size_val:
-                        continue # Skip rows without basic product info
+                for row in planned_rows:
+                    school = row['school']
+                    if not school and row['school_name']:
+                        school_key = normalize_name(row['school_name'])
+                        if school_key not in school_cache:
+                            school_cache[school_key] = School.objects.create(
+                                name=row['school_name'],
+                                code=row['school_name'][:5].upper()
+                            )
+                        school = school_cache[school_key]
 
-                    # Handle School (General Item if blank or 'General Item')
-                    if not school_name or school_name.lower() in ['general item', 'general items', 'general', 'none']:
-                        school = None
-                    else:
-                        school, _ = School.objects.get_or_create(name=school_name, defaults={'code': school_name[:5].upper()})
+                    product = row['product']
+                    if not product:
+                        product_key = normalize_name(row['product_name'])
+                        if product_key not in product_cache:
+                            product_cache[product_key] = Product.objects.create(name=row['product_name'])
+                        product = product_cache[product_key]
 
-                    product, _ = Product.objects.get_or_create(name=product_name)
-                    size, _ = Size.objects.get_or_create(product=product, size_value=size_val)
+                    size_key = (product.pk, row['size_value'].lower())
+                    if size_key not in size_cache:
+                        size, _ = Size.objects.get_or_create(
+                            product=product,
+                            size_value__iexact=row['size_value'],
+                            defaults={'size_value': row['size_value']}
+                        )
+                        size_cache[size_key] = size
+                    size = size_cache[size_key]
 
-                    price = None
-                    if price_val:
-                        try:
-                            from decimal import Decimal
-                            price = Decimal(price_val.replace(',', ''))
-                        except:
-                            pass
-
-                    stock = 0
-                    if stock_val:
-                        try:
-                            stock = int(float(stock_val.replace(',', '')))
-                        except:
-                            pass
-
-                    # Link them all
                     sp, created = SchoolProduct.objects.get_or_create(
                         school=school, product=product, size=size,
-                        defaults={'price': price, 'stock': stock}
+                        defaults={'price': row['price'], 'stock': row['stock']}
                     )
 
                     if created:
                         created_count += 1
-                        # The SKU is generated automatically in save()
                     else:
-                        # Update price and stock if they provided it
                         needs_update = False
-                        if price is not None and sp.price != price:
-                            sp.price = price
+                        if sp.price != row['price']:
+                            sp.price = row['price']
                             needs_update = True
-                        if stock > 0 and sp.stock != stock:
-                            sp.stock = stock
+                        if sp.stock != row['stock']:
+                            sp.stock = row['stock']
                             needs_update = True
                         
                         if needs_update:
                             sp.save()
                             updated_count += 1
 
-            messages.success(request, f'Import Complete! Created {created_count} new items. Updated {updated_count} existing items.')
+            summary = f'Import Complete! Created {created_count} new items. Updated {updated_count} existing items.'
+            messages.success(request, summary)
+            for correction in corrections[:10]:
+                messages.warning(request, correction)
+            if len(corrections) > 10:
+                messages.warning(request, f'{len(corrections) - 10} more auto-correction(s) were made.')
+        except UnicodeDecodeError:
+            messages.error(request, 'Import failed: this does not look like a valid CSV file. Save the Excel sheet as CSV UTF-8 and upload again.')
         except Exception as e:
             messages.error(request, f'Error reading file: Please ensure you are using the correct template.')
             
@@ -1266,3 +1433,31 @@ def analytics_dashboard(request):
         'chart_data':       chart_data,
     }
     return render(request, 'dashboard/analytics.html', ctx)
+
+
+# ─── Reset Test Data ───────────────────────────────────────────────────────────
+
+def reset_test_data(request):
+    """Clears all bills, transactions, and manufacturing orders. Keeps master data intact."""
+    if request.method == 'POST':
+        confirm_text = request.POST.get('confirm', '').strip()
+        if confirm_text != 'RESET':
+            messages.error(request, 'You must type RESET to confirm.')
+            return redirect('setup_home')
+
+        with db_transaction.atomic():
+            bill_count = Bill.objects.count()
+            tx_count = StockTransaction.objects.count()
+            mfg_count = ManufacturingOrder.objects.count()
+
+            BillItem.objects.all().delete()
+            Bill.objects.all().delete()
+            StockTransaction.objects.all().delete()
+            ManufacturingOrder.objects.all().delete()
+
+        messages.success(
+            request,
+            f'Reset complete! Cleared {bill_count} bills, {tx_count} transactions, '
+            f'{mfg_count} manufacturing orders. Bill numbering will restart fresh.'
+        )
+    return redirect('setup_home')

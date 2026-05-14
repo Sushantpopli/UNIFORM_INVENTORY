@@ -29,6 +29,7 @@
   <button class="setup-tab" onclick="switchTab('sizes')" id="tab-sizes">📏 Sizes</button>
   <button class="setup-tab" onclick="switchTab('link')" id="tab-link">🔗 Link SKUs</button>
   <button class="setup-tab" onclick="switchTab('import')" id="tab-import">📂 Bulk Import</button>
+  <button class="setup-tab" onclick="switchTab('danger')" id="tab-danger" style="color: var(--red);">⚠️ Advanced</button>
 </div>
 
 <!-- ── SCHOOLS TAB ── -->
@@ -225,12 +226,12 @@
   <div class="card" style="max-width:600px;">
     <div style="font-size:1.1rem; font-weight:800; margin-bottom:8px;">📂 Import Inventory via CSV</div>
     <div style="font-size:0.85rem; color:var(--text-muted); margin-bottom:20px;">
-      Upload a CSV file to automatically create schools, products, sizes, and set starting stock & prices.
+      Upload a CSV file to create or update inventory. The file is checked first; if any row has a problem, nothing is imported.
     </div>
     
     <div style="background:var(--surface-2); padding:16px; border-radius:10px; margin-bottom:20px; border: 1px dashed var(--border);">
       <h4 style="margin:0 0 10px 0; font-size:0.9rem;">Step 1: Download Template</h4>
-      <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:12px;">Use this exact format. Do not change the column headers.</p>
+      <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:12px;">Use this exact format. Do not change the column headers. Save Excel files as CSV before upload.</p>
       <a href="{% url 'setup_download_template' %}" class="btn btn-outline" style="text-decoration:none;">⬇️ Download Template</a>
     </div>
 
@@ -240,9 +241,72 @@
         {% csrf_token %}
         <div class="form-group" style="margin-bottom:16px;">
           <input type="file" name="csv_file" accept=".csv" required style="padding:10px; width:100%; border:1px solid var(--border); border-radius:6px; background:var(--surface); color:var(--text);" />
+          <div style="font-size:0.75rem; color:var(--text-muted); margin-top:8px; line-height:1.5;">
+            Price must be numeric. Stock must be a whole number, including 0. Duplicate rows, negative stock, missing columns, and likely spelling mistakes will stop the import.
+          </div>
         </div>
         <button type="submit" class="btn btn-primary" style="width:100%;">Upload & Import Data</button>
       </form>
+    </div>
+  </div>
+</div>
+
+<!-- ── DANGER ZONE TAB ── -->
+<div id="panel-danger" class="setup-panel" style="display:none;">
+  <div style="max-width: 600px;">
+  <div style="border: 1px solid rgba(239,68,68,0.3); border-radius: 12px; overflow: hidden;">
+    <div style="background: rgba(239,68,68,0.08); padding: 14px 20px; border-bottom: 1px solid rgba(239,68,68,0.2); display: flex; align-items: center; gap: 10px;">
+      <svg style="width: 18px; height: 18px; color: var(--red);" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>
+      <span style="font-size: 0.9rem; font-weight: 800; color: var(--red); letter-spacing: -0.3px;">Danger Zone</span>
+    </div>
+    <div style="padding: 20px;">
+      <div style="font-size: 0.88rem; font-weight: 700; margin-bottom: 6px; color: var(--text);">Reset All Test Data</div>
+      <div style="font-size: 0.78rem; color: var(--text-muted); margin-bottom: 16px; line-height: 1.5;">
+        This will permanently delete <strong>all bills, stock transactions, and manufacturing orders</strong>. 
+        Bill numbering will restart from 0001. Your schools, products, sizes, and current stock levels will NOT be affected.
+      </div>
+      <form method="POST" action="{% url 'reset_test_data' %}" id="resetForm">
+        {% csrf_token %}
+        <div style="display: flex; gap: 10px; align-items: end;">
+          <div style="flex: 1;">
+            <label style="display: block; font-size: 0.7rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 6px;">Type RESET to confirm</label>
+            <input type="text" name="confirm" id="resetInput" placeholder="Type RESET here..." autocomplete="off"
+              style="width: 100%; padding: 10px 14px; background: var(--surface-2); border: 1px solid rgba(239,68,68,0.2); border-radius: 8px; color: var(--text); font-weight: 700; font-size: 0.9rem; letter-spacing: 1px;" />
+          </div>
+          <button type="submit" id="resetBtn" disabled
+            style="padding: 10px 20px; background: rgba(239,68,68,0.15); color: rgba(239,68,68,0.4); border: 1px solid rgba(239,68,68,0.2); border-radius: 8px; font-weight: 800; font-size: 0.8rem; cursor: not-allowed; transition: all 0.2s; white-space: nowrap;">
+            Reset Data
+          </button>
+        </div>
+      </form>
+      <script>
+        document.getElementById('resetInput').addEventListener('input', function() {
+          var btn = document.getElementById('resetBtn');
+          if (this.value.trim() === 'RESET') {
+            btn.disabled = false;
+            btn.style.background = 'var(--red)';
+            btn.style.color = '#fff';
+            btn.style.cursor = 'pointer';
+            btn.style.borderColor = 'var(--red)';
+          } else {
+            btn.disabled = true;
+            btn.style.background = 'rgba(239,68,68,0.15)';
+            btn.style.color = 'rgba(239,68,68,0.4)';
+            btn.style.cursor = 'not-allowed';
+            btn.style.borderColor = 'rgba(239,68,68,0.2)';
+          }
+        });
+        document.getElementById('resetForm').addEventListener('submit', function(e) {
+          if (document.getElementById('resetInput').value.trim() !== 'RESET') {
+            e.preventDefault();
+            return;
+          }
+          if (!confirm('Are you absolutely sure? This cannot be undone!')) {
+            e.preventDefault();
+          }
+        });
+      </script>
+    </div>
     </div>
   </div>
 </div>

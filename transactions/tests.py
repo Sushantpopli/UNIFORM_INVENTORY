@@ -1,6 +1,7 @@
 from decimal import Decimal
 
-from django.test import TestCase
+from django.contrib.auth import get_user_model
+from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from products.models import Product
@@ -9,8 +10,14 @@ from sizes.models import Size
 from transactions.models import Bill, BillItem, StockTransaction
 
 
+@override_settings(SECURE_SSL_REDIRECT=False)
 class BillingStockTests(TestCase):
     def setUp(self):
+        self.user = get_user_model().objects.create_user(
+            username='billing-test-user',
+            password='test-password',
+        )
+        self.client.force_login(self.user)
         self.school = School.objects.create(name='Demo School', code='DEMO')
         self.product = Product.objects.create(name='Shirt')
         self.size = Size.objects.create(product=self.product, size_value='32')
@@ -91,6 +98,31 @@ class BillingStockTests(TestCase):
         self.assertEqual(bill.total_amount, Decimal('1400.00'))
         self.assertIn(self.school.name, bill.school_summary)
         self.assertIn(self.other_school.name, bill.school_summary)
+
+    def test_bill_allows_general_items_only(self):
+        general_item = SchoolProduct.objects.create(
+            school=None,
+            product=self.product,
+            size=self.size,
+            price=Decimal('150.00'),
+            stock=4,
+        )
+
+        response = self.client.post(reverse('bill_create'), {
+            'school': 'general',
+            'payment_mode': 'CASH',
+            'item_id[]': [str(general_item.pk)],
+            'qty[]': ['2'],
+        })
+
+        self.assertEqual(response.status_code, 302)
+        general_item.refresh_from_db()
+        self.assertEqual(general_item.stock, 2)
+
+        bill = Bill.objects.get()
+        self.assertEqual(bill.school.name, 'General Items')
+        self.assertEqual(bill.school_summary, 'General Items')
+        self.assertEqual(bill.total_amount, Decimal('300.00'))
 
     def test_bill_rejects_zero_quantity(self):
         response = self.client.post(reverse('bill_create'), {

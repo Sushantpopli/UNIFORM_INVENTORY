@@ -15,6 +15,7 @@ urlpatterns = [
     path('inventory/template/', views.download_inventory_template, name='download_inventory_template'),
     path('inventory/low-stock/', views.low_stock_report, name='low_stock_report'),
     path('inventory/update-price/<int:pk>/', views.inventory_update_price, name='inventory_update_price'),
+    path('inventory/update-stock/<int:pk>/', views.inventory_update_stock, name='inventory_update_stock'),
 
     # Transactions
     path('stock-in/', views.stock_in, name='stock_in'),
@@ -59,4 +60,5 @@ urlpatterns = [
     path('setup/link/bulk/', views.setup_link_bulk, name='setup_link_bulk'),
     path('setup/import/', views.setup_import_data, name='setup_import_data'),
     path('setup/template/', views.setup_download_template, name='setup_download_template'),
+    path('setup/reset/', views.reset_test_data, name='reset_test_data'),
 ]
