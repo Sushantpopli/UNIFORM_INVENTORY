@@ -226,7 +226,7 @@
   <div class="card" style="max-width:600px;">
     <div style="font-size:1.1rem; font-weight:800; margin-bottom:8px;">📂 Import Inventory via CSV</div>
     <div style="font-size:0.85rem; color:var(--text-muted); margin-bottom:20px;">
-      Upload a CSV file to create or update inventory. The file is checked first; if any row has a problem, nothing is imported.
+      Upload a CSV file to update inventory. The file is checked first; if any row has a problem, nothing is imported.
     </div>
     
     <div style="background:var(--surface-2); padding:16px; border-radius:10px; margin-bottom:20px; border: 1px dashed var(--border);">
@@ -242,9 +242,13 @@
         <div class="form-group" style="margin-bottom:16px;">
           <input type="file" name="csv_file" accept=".csv" required style="padding:10px; width:100%; border:1px solid var(--border); border-radius:6px; background:var(--surface); color:var(--text);" />
           <div style="font-size:0.75rem; color:var(--text-muted); margin-top:8px; line-height:1.5;">
-            Price must be numeric. Stock must be a whole number, including 0. Duplicate rows, negative stock, missing columns, and likely spelling mistakes will stop the import.
+            By default this only updates existing school/product/size rows. Price must be numeric. Stock must be a whole number, including 0. Duplicate rows, negative stock, missing columns, unknown items, and likely spelling mistakes will stop the import.
           </div>
         </div>
+        <label style="display:flex; gap:10px; align-items:flex-start; font-size:0.8rem; color:var(--text-muted); line-height:1.4; margin-bottom:16px;">
+          <input type="checkbox" name="allow_create" style="margin-top:2px;" />
+          <span>Allow creating new schools, products, sizes, and inventory links. Use this only for first-time setup, not normal stock updates.</span>
+        </label>
         <button type="submit" class="btn btn-primary" style="width:100%;">Upload & Import Data</button>
       </form>
     </div>

@@ -22,6 +22,16 @@ HEADERS = {
 }
 
 
+def make_unique_school_code(name):
+    base = re.sub(r'[^A-Z0-9]', '', (name or '').upper())[:5] or 'SCH'
+    code = base
+    suffix = 1
+    while School.objects.filter(code__iexact=code).exists():
+        suffix += 1
+        code = f'{base[: max(1, 5 - len(str(suffix)))]}{suffix}'
+    return code
+
+
 def parse_price(value, row_number, errors):
     value = (value or '').strip()
     if not value:
@@ -147,7 +157,7 @@ class Command(BaseCommand):
                                 continue
                             elif not school:
                                 new_school_name = school_name
-                                new_school_code = school_code or school_name[:5].upper()
+                                new_school_code = school_code or make_unique_school_code(school_name)
 
                         school_key = f'id:{school.pk}' if school else f'new:{normalize_name(new_school_name)}'
 
@@ -205,9 +215,12 @@ class Command(BaseCommand):
                         if not school and row['school_name']:
                             school_key = normalize_name(row['school_name'])
                             if school_key not in school_cache:
+                                code = row['school_code']
+                                if School.objects.filter(code__iexact=code).exists():
+                                    code = make_unique_school_code(row['school_name'])
                                 school_cache[school_key] = School.objects.create(
                                     name=row['school_name'],
-                                    code=row['school_code'],
+                                    code=code,
                                 )
                             school = school_cache[school_key]
 

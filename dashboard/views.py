@@ -51,6 +51,27 @@ def _safe_int(value, default=0, minimum=0):
         return default
 
 
+def _safe_price(value):
+    """Return a non-negative Decimal price, or None for invalid input."""
+    try:
+        price = Decimal(value)
+    except (InvalidOperation, TypeError, ValueError):
+        return None
+    if price < 0:
+        return None
+    return price
+
+
+def _make_unique_school_code(name):
+    base = re.sub(r'[^A-Z0-9]', '', (name or '').upper())[:5] or 'SCH'
+    code = base
+    suffix = 1
+    while School.objects.filter(code__iexact=code).exists():
+        suffix += 1
+        code = f'{base[: max(1, 5 - len(str(suffix)))]}{suffix}'
+    return code
+
+
 # ─── API Endpoints (cascading dropdowns) ───────────────────────────────────────
 
 def api_products_for_school(request):
@@ -278,16 +299,16 @@ def download_inventory_template(request):
 
 def inventory_update_price(request, pk):
     if request.method == 'POST':
-        from decimal import Decimal, InvalidOperation
         item = get_object_or_404(SchoolProduct, pk=pk)
         price_val = request.POST.get('price', '').strip()
         if price_val:
-            try:
-                item.price = Decimal(price_val)
+            price = _safe_price(price_val)
+            if price is not None:
+                item.price = price
                 item.save()
                 messages.success(request, f'Price updated for {item.product.name} ({item.size.size_value}).')
-            except (InvalidOperation, ValueError):
-                messages.error(request, 'Invalid price format.')
+            else:
+                messages.error(request, 'Invalid price. Enter 0 or a positive amount.')
         else:
             item.price = None
             item.save()
@@ -652,7 +673,7 @@ def bill_create(request):
         if school is None:
             school = School.objects.filter(name__iexact='General Items').first()
             if school is None:
-                school = School.objects.create(name='General Items', code='GEN')
+                school = School.objects.create(name='General Items', code=_make_unique_school_code('General Items'))
 
         with db_transaction.atomic():
             bill = Bill.objects.create(
@@ -914,6 +935,9 @@ def setup_school_add(request):
         if School.objects.filter(name__iexact=name).exists():
             messages.error(request, f'School "{name}" already exists.')
             return redirect('setup_home')
+        if School.objects.filter(code__iexact=code).exists():
+            messages.error(request, f'School code "{code}" already exists.')
+            return redirect('setup_home')
         School.objects.create(name=name, code=code)
         messages.success(request, f'School "{name}" added successfully.')
     return redirect('setup_home')
@@ -1005,6 +1029,9 @@ def setup_link_add(request):
         if not all([school_id, product_id, size_id]):
             messages.error(request, 'School, product, and size are all required.')
             return redirect('setup_home')
+        if price and _safe_price(price) is None:
+            messages.error(request, 'Invalid price. Enter 0 or a positive amount.')
+            return redirect('setup_home')
 
         if school_id == 'general':
             school = None
@@ -1022,7 +1049,7 @@ def setup_link_add(request):
 
         sp = SchoolProduct.objects.create(
             school=school, product=product, size=size,
-            price=price if price else None,
+            price=_safe_price(price) if price else None,
             stock=0,
         )
         messages.success(request, f'Added: {school_name} → {product.name} ({size.size_value}). SKU: {sp.sku_code}')
@@ -1035,6 +1062,9 @@ def setup_link_bulk(request):
         school_id  = request.POST.get('school_id')
         product_id = request.POST.get('product_id')
         price      = request.POST.get('price', '').strip()
+        if price and _safe_price(price) is None:
+            messages.error(request, 'Invalid price. Enter 0 or a positive amount.')
+            return redirect('setup_home')
 
         if school_id == 'general':
             school = None
@@ -1054,7 +1084,7 @@ def setup_link_bulk(request):
         for size in sizes:
             obj, made = SchoolProduct.objects.get_or_create(
                 school=school, product=product, size=size,
-                defaults={'price': price if price else None, 'stock': 0}
+                defaults={'price': _safe_price(price) if price else None, 'stock': 0}
             )
             if made:
                 created += 1
@@ -1069,13 +1099,14 @@ def setup_download_template(request):
         headers={'Content-Disposition': 'attachment; filename="inventory_template.csv"'},
     )
     writer = csv.writer(response)
-    writer.writerow(['School Name', 'Product Name', 'Size', 'Price', 'Initial Stock'])
-    writer.writerow(['St. Marys', 'Shirt', '32', '450', '100'])
-    writer.writerow(['General Item', 'Belt', 'Free', '150', '50'])
+    writer.writerow(['School Name', 'School Code', 'Product Name', 'Size', 'Price', 'Initial Stock'])
+    writer.writerow(['St. Marys', 'STM', 'Shirt', '32', '450', '100'])
+    writer.writerow(['General Item', 'GEN', 'Belt', 'Free', '150', '50'])
     return response
 
 
 IMPORT_COLUMNS = ['school name', 'product name', 'size', 'price', 'initial stock']
+OPTIONAL_IMPORT_COLUMNS = ['school code']
 GENERAL_SCHOOL_NAMES = {'general item', 'general items', 'general', 'none'}
 
 
@@ -1115,6 +1146,7 @@ def _parse_import_stock(value, row_number, errors):
 def setup_import_data(request):
     if request.method == 'POST' and request.FILES.get('csv_file'):
         csv_file = request.FILES['csv_file']
+        allow_create = request.POST.get('allow_create') == 'on'
         if not csv_file.name.lower().endswith('.csv'):
             messages.error(request, 'Please upload a CSV file. Excel .xlsx files must be saved/exported as CSV first.')
             return redirect('setup_home')
@@ -1144,12 +1176,13 @@ def setup_import_data(request):
 
             for row_number, row in enumerate(reader, start=2):
                 school_name = row.get('school name', '').strip()
+                school_code = row.get('school code', '').strip()
                 product_name = row.get('product name', '').strip()
                 size_val = row.get('size', '').strip()
                 price_val = row.get('price', '').strip()
                 stock_val = row.get('initial stock', '').strip()
 
-                if not any([school_name, product_name, size_val, price_val, stock_val]):
+                if not any([school_name, school_code, product_name, size_val, price_val, stock_val]):
                     continue
 
                 if not product_name:
@@ -1165,19 +1198,43 @@ def setup_import_data(request):
 
                 school = None
                 new_school_name = ''
-                if not school_name or school_name.lower() in GENERAL_SCHOOL_NAMES:
+                new_school_code = ''
+                school_label = school_name or school_code
+                if (
+                    not school_label
+                    or school_name.lower() in GENERAL_SCHOOL_NAMES
+                    or school_code.lower() in GENERAL_SCHOOL_NAMES
+                    or school_code.upper() == 'GEN'
+                ):
                     school_key = 'general'
                 else:
-                    school, corrected, matched_name, ratio = find_name_match(School, school_name)
-                    if school and corrected:
-                        corrections.append(f'Row {row_number}: school "{school_name}" matched to "{matched_name}".')
-                    elif not school and matched_name and ratio >= FUZZY_REVIEW_THRESHOLD:
-                        validation_errors.append(
-                            f'Row {row_number}: school "{school_name}" looks close to "{matched_name}". Fix the spelling before importing.'
-                        )
-                        continue
+                    if school_code:
+                        school = School.objects.filter(code__iexact=school_code).first()
+                        if school and school_name and normalize_name(school.name) != normalize_name(school_name):
+                            corrections.append(
+                                f'Row {row_number}: school code "{school_code}" matched existing school "{school.name}".'
+                            )
+                    if not school and school_name:
+                        school, corrected, matched_name, ratio = find_name_match(School, school_name)
+                        if school and corrected:
+                            corrections.append(f'Row {row_number}: school "{school_name}" matched to "{matched_name}".')
+                        elif not school and matched_name and ratio >= FUZZY_REVIEW_THRESHOLD:
+                            validation_errors.append(
+                                f'Row {row_number}: school "{school_name}" looks close to "{matched_name}". Fix the spelling before importing.'
+                            )
+                            continue
                     elif not school:
-                        new_school_name = school_name
+                        validation_errors.append(f'Row {row_number}: school "{school_label}" was not found.')
+                        continue
+
+                    if not school:
+                        if not allow_create:
+                            validation_errors.append(
+                                f'Row {row_number}: school "{school_label}" does not exist. Fix the name/code, or enable "Create new master data".'
+                            )
+                            continue
+                        new_school_name = school_name or school_code
+                        new_school_code = school_code or _make_unique_school_code(new_school_name)
                     school_key = f'id:{school.pk}' if school else f'new:{normalize_name(new_school_name)}'
 
                 product, product_corrected, matched_product, product_ratio = find_name_match(Product, product_name)
@@ -1188,6 +1245,28 @@ def setup_import_data(request):
                         f'Row {row_number}: product "{product_name}" looks close to "{matched_product}". Fix the spelling or create the new product manually first.'
                     )
                     continue
+                elif not product and not allow_create:
+                    validation_errors.append(
+                        f'Row {row_number}: product "{product_name}" does not exist. Fix the name, or enable "Create new master data".'
+                    )
+                    continue
+
+                size = None
+                if product:
+                    size = Size.objects.filter(product=product, size_value__iexact=size_val).first()
+                    if not size and not allow_create:
+                        validation_errors.append(
+                            f'Row {row_number}: size "{size_val}" does not exist for product "{product.name}". Fix the size, or enable "Create new master data".'
+                        )
+                        continue
+                    if size and not allow_create and not SchoolProduct.objects.filter(
+                        school=school, product=product, size=size
+                    ).exists():
+                        school_display = school.name if school else 'General Items'
+                        validation_errors.append(
+                            f'Row {row_number}: {school_display} / {product.name} / {size.size_value} is not linked in inventory. Link it first, or enable "Create new master data".'
+                        )
+                        continue
 
                 product_key = f'id:{product.pk}' if product else f'new:{normalize_name(product_name)}'
                 size_key = normalize_name(size_val)
@@ -1202,8 +1281,10 @@ def setup_import_data(request):
                 planned_rows.append({
                     'school': school,
                     'school_name': new_school_name,
+                    'school_code': new_school_code,
                     'product': product,
                     'product_name': product_name,
+                    'size': size,
                     'size_value': size_val,
                     'price': price,
                     'stock': stock,
@@ -1233,7 +1314,7 @@ def setup_import_data(request):
                         if school_key not in school_cache:
                             school_cache[school_key] = School.objects.create(
                                 name=row['school_name'],
-                                code=row['school_name'][:5].upper()
+                                code=row['school_code'] or _make_unique_school_code(row['school_name'])
                             )
                         school = school_cache[school_key]
 
@@ -1244,15 +1325,15 @@ def setup_import_data(request):
                             product_cache[product_key] = Product.objects.create(name=row['product_name'])
                         product = product_cache[product_key]
 
-                    size_key = (product.pk, row['size_value'].lower())
-                    if size_key not in size_cache:
-                        size, _ = Size.objects.get_or_create(
-                            product=product,
-                            size_value__iexact=row['size_value'],
-                            defaults={'size_value': row['size_value']}
-                        )
-                        size_cache[size_key] = size
-                    size = size_cache[size_key]
+                    size = row['size']
+                    if not size:
+                        size_key = (product.pk, normalize_name(row['size_value']))
+                        if size_key not in size_cache:
+                            size_cache[size_key] = Size.objects.create(
+                                product=product,
+                                size_value=row['size_value'],
+                            )
+                        size = size_cache[size_key]
 
                     sp, created = SchoolProduct.objects.get_or_create(
                         school=school, product=product, size=size,
@@ -1276,6 +1357,10 @@ def setup_import_data(request):
 
             summary = f'Import Complete! Created {created_count} new items. Updated {updated_count} existing items.'
             messages.success(request, summary)
+            if not allow_create and created_count:
+                messages.warning(request, 'Some new items were created unexpectedly. Please review inventory.')
+            elif not allow_create:
+                messages.success(request, 'Safe update mode was used: no new master data was created.')
             for correction in corrections[:10]:
                 messages.warning(request, correction)
             if len(corrections) > 10:

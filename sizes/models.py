@@ -1,4 +1,5 @@
 from django.db import models
+from django.db.models.functions import Lower
 from products.models import Product
 
 class Size(models.Model):
@@ -7,3 +8,12 @@ class Size(models.Model):
 
     def __str__(self):
         return f"{self.product.name} - {self.size_value}"
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                'product',
+                Lower('size_value'),
+                name='uniq_size_per_product_ci',
+            ),
+        ]

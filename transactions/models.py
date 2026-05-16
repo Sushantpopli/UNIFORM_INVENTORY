@@ -1,4 +1,5 @@
 from django.db import models
+from django.db.models import Q
 from django.utils import timezone
 from schools.models import School, SchoolProduct
 
@@ -101,6 +102,23 @@ class BillItem(models.Model):
         return f"{self.product_name} ({self.size_value}) x{self.quantity} = ₹{self.line_total}"
 
 
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(quantity__gt=0),
+                name='billitem_quantity_positive',
+            ),
+            models.CheckConstraint(
+                condition=Q(unit_price__gte=0),
+                name='billitem_unit_price_non_negative',
+            ),
+            models.CheckConstraint(
+                condition=Q(line_total__gte=0),
+                name='billitem_line_total_non_negative',
+            ),
+        ]
+
+
 class ManufacturingOrder(models.Model):
     STATUS_CHOICES = [
         ('PENDING', 'Pending'),
@@ -120,6 +138,16 @@ class ManufacturingOrder(models.Model):
 
     class Meta:
         ordering = ['-ordered_at']
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(quantity_ordered__gt=0),
+                name='mfg_quantity_ordered_positive',
+            ),
+            models.CheckConstraint(
+                condition=Q(quantity_received__gte=0),
+                name='mfg_quantity_received_non_negative',
+            ),
+        ]
 
     def __str__(self):
         return f"Order: {self.school_product} — {self.quantity_ordered} units ({self.status})"

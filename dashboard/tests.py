@@ -1,5 +1,6 @@
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.db import IntegrityError, transaction
 from django.test import TestCase
 from django.urls import reverse
 
@@ -17,13 +18,16 @@ class SetupImportDataTests(TestCase):
         )
         self.client.force_login(user)
 
-    def upload_csv(self, content, filename='inventory.csv'):
+    def upload_csv(self, content, filename='inventory.csv', allow_create=True):
         upload = SimpleUploadedFile(
             filename,
             content.encode('utf-8'),
             content_type='text/csv',
         )
-        return self.client.post(reverse('setup_import_data'), {'csv_file': upload})
+        data = {'csv_file': upload}
+        if allow_create:
+            data['allow_create'] = 'on'
+        return self.client.post(reverse('setup_import_data'), data)
 
     def test_school_typo_matches_existing_school_instead_of_creating_duplicate(self):
         school = School.objects.create(name='Banda Bahadur School', code='BBS')
@@ -113,6 +117,67 @@ class SetupImportDataTests(TestCase):
         item.refresh_from_db()
         self.assertEqual(item.stock, 0)
 
+    def test_safe_import_updates_existing_inventory_without_create_flag(self):
+        school = School.objects.create(name='Banda Bahadur School', code='BBS')
+        product = Product.objects.create(name='Shirt')
+        size = Size.objects.create(product=product, size_value='32')
+        item = SchoolProduct.objects.create(
+            school=school,
+            product=product,
+            size=size,
+            price='450',
+            stock=10,
+        )
+
+        response = self.upload_csv(
+            'School Name,School Code,Product Name,Size,Price,Initial Stock\n'
+            'Banda Bahadur School,BBS,Shirt,32,475,25\n',
+            allow_create=False,
+        )
+
+        self.assertRedirects(response, reverse('setup_home'))
+        item.refresh_from_db()
+        self.assertEqual(item.stock, 25)
+        self.assertEqual(str(item.price), '475.00')
+        self.assertEqual(SchoolProduct.objects.count(), 1)
+
+    def test_safe_import_rejects_unknown_product_instead_of_creating_it(self):
+        school = School.objects.create(name='Banda Bahadur School', code='BBS')
+        product = Product.objects.create(name='Shirt')
+        size = Size.objects.create(product=product, size_value='32')
+        SchoolProduct.objects.create(
+            school=school,
+            product=product,
+            size=size,
+            price='450',
+            stock=10,
+        )
+
+        response = self.upload_csv(
+            'School Name,School Code,Product Name,Size,Price,Initial Stock\n'
+            'Banda Bahadur School,BBS,Blazer,32,900,5\n',
+            allow_create=False,
+        )
+
+        self.assertRedirects(response, reverse('setup_home'))
+        self.assertEqual(Product.objects.count(), 1)
+        self.assertEqual(SchoolProduct.objects.count(), 1)
+
+    def test_safe_import_rejects_unlinked_size_instead_of_creating_inventory_row(self):
+        school = School.objects.create(name='Banda Bahadur School', code='BBS')
+        product = Product.objects.create(name='Shirt')
+        Size.objects.create(product=product, size_value='32')
+
+        response = self.upload_csv(
+            'School Name,School Code,Product Name,Size,Price,Initial Stock\n'
+            'Banda Bahadur School,BBS,Shirt,34,450,10\n',
+            allow_create=False,
+        )
+
+        self.assertRedirects(response, reverse('setup_home'))
+        self.assertEqual(Size.objects.count(), 1)
+        self.assertEqual(SchoolProduct.objects.count(), 0)
+
     def test_suspicious_product_typo_cancels_import(self):
         school = School.objects.create(name='Banda Bahadur School', code='BBS')
         Product.objects.create(name='Shirt')
@@ -190,3 +255,46 @@ class InventoryStockUpdateTests(TestCase):
         self.item.refresh_from_db()
         self.assertEqual(self.item.stock, 10)
         self.assertFalse(StockTransaction.objects.exists())
+
+
+class DatabaseConstraintTests(TestCase):
+    def setUp(self):
+        self.school = School.objects.create(name='Banda Bahadur School', code='BBS')
+        self.product = Product.objects.create(name='Shirt')
+        self.size = Size.objects.create(product=self.product, size_value='32')
+
+    def test_school_code_is_unique_case_insensitive(self):
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            School.objects.create(name='Another School', code='bbs')
+
+    def test_size_is_unique_per_product_case_insensitive(self):
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            Size.objects.create(product=self.product, size_value='32')
+
+    def test_general_school_product_cannot_duplicate_product_size(self):
+        SchoolProduct.objects.create(
+            school=None,
+            product=self.product,
+            size=self.size,
+            price='450',
+            stock=1,
+        )
+
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            SchoolProduct.objects.create(
+                school=None,
+                product=self.product,
+                size=self.size,
+                price='450',
+                stock=1,
+            )
+
+    def test_school_product_rejects_negative_stock(self):
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            SchoolProduct.objects.create(
+                school=self.school,
+                product=self.product,
+                size=self.size,
+                price='450',
+                stock=-1,
+            )

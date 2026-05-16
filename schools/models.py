@@ -1,4 +1,6 @@
 from django.db import models
+from django.db.models import Q
+from django.db.models.functions import Lower
 from products.models import Product
 from sizes.models import Size
 
@@ -12,6 +14,9 @@ class School(models.Model):
 
     class Meta:
         ordering = ['name']
+        constraints = [
+            models.UniqueConstraint(Lower('code'), name='uniq_school_code_ci'),
+        ]
 
 
 class SchoolProduct(models.Model):
@@ -24,12 +29,35 @@ class SchoolProduct(models.Model):
     sku_code = models.CharField(max_length=30, unique=True, blank=True, null=True, db_index=True)
 
     class Meta:
-        unique_together = ('school', 'product', 'size')
         ordering = ['school__name', 'product__name', 'size__size_value']
         indexes = [
             models.Index(fields=['school', 'product', 'size'], name='idx_school_product_size'),
             models.Index(fields=['school', 'product'], name='idx_school_product'),
             models.Index(fields=['stock'], name='idx_stock_level'),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['school', 'product', 'size'],
+                condition=Q(school__isnull=False),
+                name='uniq_school_product_size_specific',
+            ),
+            models.UniqueConstraint(
+                fields=['product', 'size'],
+                condition=Q(school__isnull=True),
+                name='uniq_school_product_size_general',
+            ),
+            models.CheckConstraint(
+                condition=Q(price__isnull=True) | Q(price__gte=0),
+                name='schoolproduct_price_non_negative',
+            ),
+            models.CheckConstraint(
+                condition=Q(stock__gte=0),
+                name='schoolproduct_stock_non_negative',
+            ),
+            models.CheckConstraint(
+                condition=Q(low_stock_threshold__gte=0),
+                name='schoolproduct_threshold_non_negative',
+            ),
         ]
 
     def __str__(self):
