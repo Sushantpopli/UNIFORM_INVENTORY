@@ -112,12 +112,17 @@ requirements.txt   # Project dependencies
 
 ## Future Roadmap 🚀
 
-We are constantly looking for ways to make UniStock more powerful and easier for shop owners. Here is our vision for the next major updates:
+We are constantly looking for ways to make UniStock more powerful and easier for shop owners. Our current focus is on safely integrating AI step-by-step:
 
-- [ ] **AI Inventory Assistant**: A natural language chatbot that lets you ask questions like *"Which products are not selling?"* or *"What should I order for next week?"* and get instant answers based on sales data.
-- [ ] **OCR Stock Scanner**: An experimental feature to take a photo of a physical stock list or supplier bill and automatically update the digital inventory.
+- [x] **Phase 1: Clean Inventory & Reports** - Establish a robust, error-free database with reliable schema and standard reporting.
+- [x] **Phase 2: AI Chat Assistant (Read-only)** - Integrate a local AI to answer natural language questions based on inventory and sales logs (e.g., "Which items are low stock?").
+- [ ] **Phase 3: AI Feedback Collection** - Add "Correct" / "Wrong" buttons to the assistant. Store user feedback and corrections as training data for future improvements.
+- [ ] **Phase 4: Voice Input** - Allow users to speak their questions directly into the AI assistant.
+- [ ] **Phase 5: OCR Bill Scanner (Draft Mode)** - Read supplier bills via camera and create a "draft" restock entry. Requires human review before stock is actually updated.
+- [ ] **Phase 6: Custom Fine-Tuning** - Use the feedback data collected in Phase 3 to fine-tune a specialized model tailored to UniStock's specific business context.
+- [ ] **Phase 7: Advanced Learning (RL)** - Introduce Reinforcement Learning if the business scale justifies it.
 - [ ] **Automated Cloud Backups**: Secure, daily encrypted backups to ensure business data is never lost.
-- [ ] **Multi-User Permissions**: Role-based access for staff members with limited permissions (e.g., Sales only).
+- [ ] **Multi-User Permissions**: Role-based access for staff members with limited permissions.
 
 ---
 
