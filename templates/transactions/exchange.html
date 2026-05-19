@@ -122,12 +122,18 @@
   const barNew = document.getElementById('bar-new');
   const statusOld = document.getElementById('status-old');
   const statusNew = document.getElementById('status-new');
-  const containerNew = document.getElementById('container-new');
-  
   const schoolSel = document.getElementById('school');
   const productSel = document.getElementById('product');
   const oldSize = document.getElementById('old_size');
   const newSize = document.getElementById('new_size');
+
+  function setTomSelectValue(select, value) {
+    select.value = String(value);
+    if (select.tomselect) {
+      select.tomselect.setValue(String(value), true);
+      select.tomselect.blur();
+    }
+  }
 
   barcodeOld.addEventListener('keypress', async function(e) {
     if (e.key === 'Enter') {
@@ -144,28 +150,24 @@
         if (!res.ok) throw new Error('Not found');
         const item = await res.json();
         
-        schoolSel.value = item.school_id;
+        setTomSelectValue(schoolSel, item.school_id);
         
         const pRes = await fetch('/api/products-for-school/?school_id=' + item.school_id);
         const pData = await pRes.json();
-        productSel.innerHTML = '<option value="">-- Select Product --</option>';
-        pData.forEach(p => { productSel.innerHTML += '<option value="' + p.id + '">' + p.name + '</option>'; });
-        productSel.disabled = false;
-        productSel.value = item.product_id;
+        updateSelect(
+          productSel,
+          pData.map(p => ({value: p.id, text: p.name})),
+          '-- Select Product --',
+          false
+        );
+        setTomSelectValue(productSel, item.product_id);
         
         const sRes = await fetch('/api/sizes-for-school-product/?school_id=' + item.school_id + '&product_id=' + item.product_id);
         const sData = await sRes.json();
-        
-        oldSize.innerHTML = '<option value="">-- Select Size --</option>';
-        newSize.innerHTML = '<option value="">-- Select Size --</option>';
-        sData.forEach(s => { 
-            oldSize.innerHTML += '<option value="' + s.id + '">' + s.size_value + '</option>'; 
-            newSize.innerHTML += '<option value="' + s.id + '">' + s.size_value + '</option>'; 
-        });
-        oldSize.disabled = false;
-        newSize.disabled = false;
-        
-        oldSize.value = item.size_id;
+        const sizeOptions = sData.map(s => ({value: s.id, text: s.size_value}));
+        updateSelect(oldSize, sizeOptions, '-- Select Size --', false);
+        updateSelect(newSize, sizeOptions, '-- Select Size --', false);
+        setTomSelectValue(oldSize, item.size_id);
         
         // Move to next step
         statusOld.innerHTML = "✓ Found";
@@ -222,7 +224,7 @@
             return;
         }
         
-        newSize.value = item.size_id;
+        setTomSelectValue(newSize, item.size_id);
         
         // Ready! Focus quantity.
         statusNew.innerHTML = "✓ Matched";

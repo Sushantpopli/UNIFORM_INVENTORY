@@ -4,6 +4,8 @@ from . import views
 urlpatterns = [
     # Dashboard
     path('', views.dashboard, name='dashboard'),
+    path('assistant/', views.ai_assistant, name='ai_assistant'),
+    path('assistant/ask/', views.ai_assistant_ask, name='ai_assistant_ask'),
 
     # API (cascading dropdowns)
     path('api/products-for-school/', views.api_products_for_school, name='api_products_for_school'),

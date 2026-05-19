@@ -7,6 +7,7 @@ from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.core.cache import cache
 from django.http import JsonResponse, HttpResponse
+from django.views.decorators.http import require_POST
 from django.utils import timezone
 from datetime import timedelta
 import json
@@ -19,6 +20,7 @@ from schools.import_matching import FUZZY_REVIEW_THRESHOLD, find_name_match, nor
 from products.models import Product
 from sizes.models import Size
 from transactions.models import StockTransaction, ManufacturingOrder, Bill, BillItem
+from .ai_assistant import ask_local_assistant
 import barcode
 from barcode.writer import SVGWriter
 
@@ -73,6 +75,34 @@ def _make_unique_school_code(name):
 
 
 # ─── API Endpoints (cascading dropdowns) ───────────────────────────────────────
+
+def ai_assistant(request):
+    return render(request, 'dashboard/assistant.html')
+
+
+@require_POST
+def ai_assistant_ask(request):
+    try:
+        payload = json.loads(request.body.decode('utf-8') or '{}')
+    except json.JSONDecodeError:
+        return JsonResponse({'ok': False, 'answer': 'Invalid request.'}, status=400)
+
+    question = (payload.get('question') or '').strip()
+    if not question:
+        return JsonResponse({'ok': False, 'answer': 'Please type a question first.'}, status=400)
+    if len(question) > 500:
+        return JsonResponse({'ok': False, 'answer': 'Please keep the question under 500 characters.'}, status=400)
+
+    try:
+        result = ask_local_assistant(question)
+    except Exception:
+        return JsonResponse({
+            'ok': False,
+            'answer': 'The assistant could not answer right now. Check whether Ollama is running and the model is installed.',
+        }, status=502)
+
+    return JsonResponse(result)
+
 
 def api_products_for_school(request):
     school_id = request.GET.get('school_id')

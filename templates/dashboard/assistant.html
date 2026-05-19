@@ -1,0 +1,250 @@
+{% extends 'base.html' %}
+{% block title %}Ask UniStock{% endblock %}
+{% block nav_assistant %}active{% endblock %}
+{% block page_title %}Ask UniStock{% endblock %}
+{% block page_sub %}Read-only inventory assistant{% endblock %}
+
+{% block content %}
+<style>
+  .assistant-shell {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 300px;
+    gap: 18px;
+    align-items: start;
+  }
+  .assistant-panel,
+  .assistant-side {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+  }
+  .assistant-panel {
+    min-height: 620px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .assistant-head {
+    padding: 18px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  .assistant-title {
+    font-weight: 900;
+    font-size: 1rem;
+  }
+  .assistant-state {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    font-weight: 700;
+  }
+  .assistant-chat {
+    flex: 1;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    overflow-y: auto;
+  }
+  .msg {
+    max-width: 78%;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px 14px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    font-size: 0.92rem;
+  }
+  .msg.user {
+    align-self: flex-end;
+    background: rgba(245,158,11,0.12);
+    border-color: rgba(245,158,11,0.28);
+  }
+  .msg.bot {
+    align-self: flex-start;
+    background: var(--surface-2);
+  }
+  .assistant-form {
+    border-top: 1px solid var(--border);
+    padding: 14px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+  }
+  .assistant-form textarea {
+    width: 100%;
+    min-height: 48px;
+    max-height: 130px;
+    resize: vertical;
+    background: var(--surface-2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 14px;
+    font-family: inherit;
+    font-size: 0.92rem;
+    outline: none;
+  }
+  .assistant-form textarea:focus {
+    border-color: var(--gold);
+  }
+  .assistant-form button,
+  .sample-btn {
+    border: 1px solid rgba(245,158,11,0.45);
+    background: var(--gold);
+    color: #111;
+    font-weight: 900;
+    border-radius: 10px;
+    padding: 0 18px;
+    cursor: pointer;
+  }
+  .assistant-form button:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+  .assistant-side {
+    padding: 16px;
+  }
+  .side-label {
+    font-size: 0.62rem;
+    font-weight: 900;
+    letter-spacing: 1.4px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 12px;
+  }
+  .sample-list {
+    display: grid;
+    gap: 8px;
+  }
+  .sample-btn {
+    width: 100%;
+    background: var(--surface-2);
+    color: var(--text);
+    border-color: var(--border);
+    text-align: left;
+    padding: 11px 12px;
+    font-size: 0.82rem;
+    line-height: 1.35;
+  }
+  .sample-btn:hover {
+    border-color: var(--gold);
+    color: var(--gold);
+  }
+  .assistant-note {
+    margin-top: 18px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border);
+    color: var(--text-muted);
+    font-size: 0.78rem;
+    line-height: 1.5;
+  }
+  @media (max-width: 980px) {
+    .assistant-shell { grid-template-columns: 1fr; }
+    .msg { max-width: 92%; }
+  }
+</style>
+
+<div class="assistant-shell">
+  <section class="assistant-panel">
+    <div class="assistant-head">
+      <div>
+        <div class="assistant-title">Inventory Assistant</div>
+        <div class="assistant-state" id="assistantState">Ready</div>
+      </div>
+    </div>
+
+    <div class="assistant-chat" id="assistantChat">
+      <div class="msg bot">Ask me about low stock, sales, school inventory, reorder suggestions, or stock value. I run through local Ollama AI and can only read data, not change it.</div>
+    </div>
+
+    <form class="assistant-form" id="assistantForm">
+      {% csrf_token %}
+      <textarea id="assistantQuestion" maxlength="500" placeholder="Ask: Which items should I reorder this week?"></textarea>
+      <button type="submit" id="assistantSubmit">Ask</button>
+    </form>
+  </section>
+
+  <aside class="assistant-side">
+    <div class="side-label">Try Asking</div>
+    <div class="sample-list">
+      <button class="sample-btn" type="button">Which items are low stock?</button>
+      <button class="sample-btn" type="button">What sold the most in the last 30 days?</button>
+      <button class="sample-btn" type="button">How much stock value do I have?</button>
+      <button class="sample-btn" type="button">What should I reorder first?</button>
+      <button class="sample-btn" type="button">Show me today's sales summary.</button>
+    </div>
+    <div class="assistant-note">
+      This first version is intentionally read-only and uses free local Ollama AI. Stock updates, billing, and price changes still happen through the normal app screens.
+    </div>
+  </aside>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  const form = document.getElementById('assistantForm');
+  const questionEl = document.getElementById('assistantQuestion');
+  const chat = document.getElementById('assistantChat');
+  const state = document.getElementById('assistantState');
+  const submit = document.getElementById('assistantSubmit');
+  const csrf = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+  function addMessage(text, role) {
+    const msg = document.createElement('div');
+    msg.className = `msg ${role}`;
+    msg.textContent = text;
+    chat.appendChild(msg);
+    chat.scrollTop = chat.scrollHeight;
+  }
+
+  async function ask(question) {
+    const clean = question.trim();
+    if (!clean) return;
+    addMessage(clean, 'user');
+    questionEl.value = '';
+    state.textContent = 'Thinking...';
+    submit.disabled = true;
+
+    try {
+      const response = await fetch("{% url 'ai_assistant_ask' %}", {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': csrf,
+        },
+        body: JSON.stringify({ question: clean }),
+      });
+      const data = await response.json();
+      addMessage(data.answer || 'No answer returned.', 'bot');
+    } catch (err) {
+      addMessage('Assistant is not reachable right now. Check the server terminal.', 'bot');
+    } finally {
+      state.textContent = 'Ready';
+      submit.disabled = false;
+      questionEl.focus();
+    }
+  }
+
+  form.addEventListener('submit', function(event) {
+    event.preventDefault();
+    ask(questionEl.value);
+  });
+
+  questionEl.addEventListener('keydown', function(event) {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      ask(questionEl.value);
+    }
+  });
+
+  document.querySelectorAll('.sample-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      ask(btn.textContent);
+    });
+  });
+</script>
+{% endblock %}
